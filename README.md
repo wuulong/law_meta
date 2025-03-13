@@ -1,6 +1,9 @@
 # law_meta
 law metadata framework
 
+# 架構
+- 請參考 [法律語法形式化.md](https://github.com/wuulong/law_meta/blob/main/%E6%B3%95%E5%BE%8B%E8%AA%9E%E6%B3%95%E5%BD%A2%E5%BC%8F%E5%8C%96.md)
+
 # 一般
 - 版本： 20250313
 - Code 版權: MIT
