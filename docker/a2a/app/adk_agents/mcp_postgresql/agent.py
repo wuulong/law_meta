@@ -628,6 +628,10 @@ data_spec="""
 希望這份完整的設計說明能幫助你順利地將「法律語法形式化」方法應用於其他法規！ 如果你在實踐過程中遇到任何問題，或是有任何新的想法，都非常歡迎隨時提出來一起討論喔！
 -----
 """
+import os
+postgres_host = os.environ.get('POSTGRES_HOST', 'postgres_host')
+postgres_port = os.environ.get('POSTGRES_PORT', 'postgres_port')
+postgres_password = os.environ.get('POSTGRES_PASSWORD', 'postgres_password')
 
 root_agent = LlmAgent(
     model='gemini-2.5-flash-preview-04-17',#'gemini-2.0-flash',
@@ -640,7 +644,7 @@ root_agent = LlmAgent(
                 args=[
                     "-y",  # Argument for npx to auto-confirm install
                     "@modelcontextprotocol/server-postgres",
-                    "postgresql://root:LN3F5E8iGs67HDRlZWOehT0yJ2a4m19k@211.73.81.235:30198/zeabur",
+                    f"postgresql://root:{postgres_password}@{postgres_host}:{postgres_port}/zeabur",
                 ],
             ),
             # Optional: Filter which tools from the MCP server are exposed

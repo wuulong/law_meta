@@ -21,17 +21,15 @@ services:
     # 設定環境變數，這些變數會被 app.py 讀取
     environment:
       # 這些值必須與下面 db 服務中定義的環境變數相匹配
-      - POSTGRES_DB=${POSTGRES_DB}
-      - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       # 關鍵：DB_HOST 的值是 db 服務的名稱，Compose 會處理好 DNS 解析
-      - DB_HOST=lawmeta-pg
-      - DB_PORT=5432
+      - POSTGRES_HOST=lawmeta-pg
+      - POSTGRES_PORT=5432
     # 設定此服務的啟動依賴
-    #depends_on:
-    #  db:
+    depends_on:
+      db:
         # 不僅等待 db 容器啟動，還要等待其健康檢查通過
-    #     condition: service_healthy
+         condition: service_healthy
 
   # PostgreSQL 資料庫服務
   db:
@@ -45,9 +43,9 @@ services:
     restart: always
     # 設定環境變數，官方 postgres 映像檔會使用這些變數來初始化資料庫
     environment:
-      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_USER=root
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_DB=zeabur
     # 掛載一個具名 Volume 來持久化資料庫數據
     # 這樣即使容器被刪除，數據依然保留在 `db_data` 這個 Volume 中
     #volumes:
