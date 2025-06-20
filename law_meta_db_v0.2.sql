@@ -13,7 +13,7 @@ DROP TABLE IF EXISTS laws CASCADE;
 -- 1. 法規資料表 (laws)
 -- Stores core law information from XML, LLM outputs, and rich JSON metadata.
 CREATE TABLE laws (
-    id SERIAL PRIMARY KEY,                          -- 自動生成的唯一識別碼
+    id SERIAL PRIMARY PRIMARY KEY,                          -- 自動生成的唯一識別碼
     pcode VARCHAR(50) UNIQUE NOT NULL,              -- 法規PCode (from URL, e.g., A0000001), a reliable unique ID
     
     -- Fields directly from XML structure
@@ -101,20 +101,24 @@ CREATE INDEX idx_articles_article_metadata_gin ON articles USING GIN (article_me
 -- Stores legal concept vocabulary (Legal Concept Meta Data)
 CREATE TABLE legal_concepts (
     id SERIAL PRIMARY KEY,                          -- 自動生成的唯一識別碼
-    code VARCHAR(255) UNIQUE NOT NULL,              -- 法律概念代號，唯一 (e.g., LC_政府採購法_採購)
+    law_id INTEGER NOT NULL REFERENCES laws(id) ON DELETE CASCADE, -- 指向所屬法規的外部鍵
+    code VARCHAR(255) NOT NULL,                     -- 法律概念代號
     name VARCHAR(255) NOT NULL,                     -- 詞彙名稱
-    data JSONB                                      -- Stores the complete "Legal Concept Meta Data" JSON
+    data JSONB,                                     -- Stores the complete "Legal Concept Meta Data" JSON
+    UNIQUE (law_id, code)                           -- 確保同一法規內的法律概念代號唯一
 );
 
 COMMENT ON TABLE legal_concepts IS '儲存法律概念詞彙庫 (Legal Concept Meta Data)';
 COMMENT ON COLUMN legal_concepts.id IS '自動生成的唯一識別碼';
-COMMENT ON COLUMN legal_concepts.code IS '法律概念代號，唯一識別';
+COMMENT ON COLUMN legal_concepts.law_id IS '指向所屬法規的外部鍵';
+COMMENT ON COLUMN legal_concepts.code IS '法律概念代號，在同一法規內唯一';
 COMMENT ON COLUMN legal_concepts.name IS '詞彙名稱';
 COMMENT ON COLUMN legal_concepts.data IS '儲存完整的法律概念 Meta Data JSON 內容';
 
 -- Indexes for legal_concepts table
 CREATE INDEX idx_legal_concepts_code ON legal_concepts (code);
 CREATE INDEX idx_legal_concepts_name ON legal_concepts (name);
+CREATE INDEX idx_legal_concepts_law_id ON legal_concepts (law_id);
 CREATE INDEX idx_legal_concepts_data_gin ON legal_concepts USING GIN (data);
 
 
@@ -191,3 +195,4 @@ COMMENT ON COLUMN article_legal_concept.legal_concept_id IS '指向法律概念�
 -- Indexes for article_legal_concept table
 CREATE INDEX idx_alc_article_id ON article_legal_concept (article_id);
 CREATE INDEX idx_alc_legal_concept_id ON article_legal_concept (legal_concept_id);
+
