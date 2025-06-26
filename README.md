@@ -1,13 +1,19 @@
 # law_meta
 law metadata framework
-
-# 架構
-- 請參考 [法律語法形式化.md](https://github.com/wuulong/law_meta/blob/main/%E6%B3%95%E5%BE%8B%E8%AA%9E%E6%B3%95%E5%BD%A2%E5%BC%8F%E5%8C%96.md)
-
-# 一般
-- 版本： 20250313
 - Code 版權: MIT
 - 資料版權： CC-BY-SA 4.0，作者：哈爸
+
+
+# 主歷程
+- 法律語法形式化與相關管理工具
+- 法規 A2A 實驗
+
+# 法律語法形式化與相關管理工具
+## 架構
+- 請參考 [法律語法形式化.md](https://github.com/wuulong/law_meta/blob/main/%E6%B3%95%E5%BE%8B%E8%AA%9E%E6%B3%95%E5%BD%A2%E5%BC%8F%E5%8C%96.md)
+
+## 一般
+- 版本： 20250313
 - 內容：99% 都是 AI （Gemini Flash 2.0 think）的回答
 - 緣起： [AIQA-法律語法形式化.pdf](https://drive.google.com/open?id=1v_5KyygdGDIiQRRuC5RpMcKzbdaKPYUQ&usp=drive_copy)
 - 構思的過程：
@@ -29,17 +35,17 @@ law metadata framework
 	- 法條規則太多，建議分離成另外一個檔案
 	- 法條時間軸，用另外檔案，因為資料來源也不同。留著只是多個空欄位
 	- 產生的 json, 還是有固定型態的語法錯誤。如該是陣列的卻只有一筆，格式不對。可能可以寫一些檢查的 code
-# 法規 md 製作技巧
+## 法規 md 製作技巧
 - 到法規資料庫，以下都是手動複製到文字 md 檔，建議順序
 	- 概要
 	- 條文
 	- 沿革
-# 手動使用技巧
+## 手動使用技巧
 - 使用 AI studio 選用 Gemini 2.0 Flash Think 01-21 模型
 - 開新 chat
 	- system prompt: 請以台灣人的立場，用繁體中文回答
 
-## 使用
+### 使用
 - 放入需要的 法規與相關的 json 檔案
 	- 可先下載預先產製好的
 		- 民法
@@ -52,7 +58,7 @@ law metadata framework
 		- 預算法
 - 開始問
 
-## 製作法規 json 技巧
+### 製作法規 json 技巧
 - 放入
 	- 法律語法形式化.md
 	- 放入要製作那個法規的 md
@@ -70,11 +76,16 @@ law metadata framework
 	- 前面產生時發生中斷，請產生第一百十二條
 - 編輯時刪除上一次的最後一個不完整法條
 
-# 自動產製 json 
+## 自動產製 json 
 
 - 使用 law_meta_loader.ipynb
 - 放入要製作那個法規的 md
 - 一點手動開關與執行，產製出 json
 
-# 使用 meta data做自動化分析
+## 使用 meta data做自動化分析
 - law_meta_loader.ipynb 內開始提供一些範例，請參考
+
+
+# 法規 A2A 實驗
+- [法規 A2A 實驗](./法規%20A2A%20實驗.md)
+	- [AIQA-法規 A2A 實驗](./AIQA-法規%20A2A%20實驗.md)  
