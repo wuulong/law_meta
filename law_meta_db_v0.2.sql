@@ -36,6 +36,7 @@ CREATE TABLE laws (
     llm_keywords TEXT,                              -- LLM generated keywords, concatenated into a single string
 
     -- Rich Metadata (as defined in 法律語法形式化.md)
+    is_active BOOLEAN DEFAULT TRUE,
     law_metadata JSONB                              -- Stores the complete "Law Meta Data" JSON structure
 );
 
@@ -128,7 +129,9 @@ CREATE TABLE law_hierarchy_relationships (
     id SERIAL PRIMARY KEY,                          -- 自動生成的唯一識別碼
     relationship_code VARCHAR(255) UNIQUE NOT NULL, -- 關係代號，唯一 (e.g., LH_政府採購法_政府採購法施行細則)
     main_law_id INTEGER NOT NULL REFERENCES laws(id) ON DELETE CASCADE,       -- 主要法規的外部鍵
+    main_law_name VARCHAR(255),                     -- 主要法規名稱 (新增)
     related_law_id INTEGER NOT NULL REFERENCES laws(id) ON DELETE CASCADE,    -- 關聯法規的外部鍵
+    related_law_name VARCHAR(255),                  -- 關聯法規名稱 (新增)
     hierarchy_type VARCHAR(100) NOT NULL,           -- 階層關係類型，例如 "子法規"
     data JSONB                                      -- Stores the complete "Law Hierarchy Relationship Meta Data" JSON
 );
@@ -155,8 +158,10 @@ CREATE TABLE law_relationships (
     code VARCHAR(255) UNIQUE NOT NULL,              -- 關係代號，唯一 (e.g., LR_政府採購法_9)
     relationship_type VARCHAR(100) NOT NULL,        -- 關聯類型，例如 "法條-法規"
     main_law_id INTEGER REFERENCES laws(id) ON DELETE CASCADE,          -- 主要法規的外部鍵 (可為 NULL)
+    main_law_name VARCHAR(255),                     -- 主要法規名稱 (新增)
     main_article_id INTEGER REFERENCES articles(id) ON DELETE CASCADE,  -- 主要法條的外部鍵 (可為 NULL)
     related_law_id INTEGER REFERENCES laws(id) ON DELETE CASCADE,       -- 關聯法規的外部鍵 (可為 NULL)
+    related_law_name VARCHAR(255),                  -- 關聯法規名稱 (新增)
     related_article_id INTEGER REFERENCES articles(id) ON DELETE CASCADE, -- 關聯法條的外部鍵 (可為 NULL)
     data JSONB                                      -- Stores the complete "Law Relationship Meta Data" JSON
 );
