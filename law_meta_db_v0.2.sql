@@ -13,7 +13,7 @@ DROP TABLE IF EXISTS laws CASCADE;
 -- 1. 法規資料表 (laws)
 -- Stores core law information from XML, LLM outputs, and rich JSON metadata.
 CREATE TABLE laws (
-    id SERIAL PRIMARY PRIMARY KEY,                          -- 自動生成的唯一識別碼
+    id SERIAL PRIMARY KEY,                          -- 自動生成的唯一識別碼
     pcode VARCHAR(50) UNIQUE NOT NULL,              -- 法規PCode (from URL, e.g., A0000001), a reliable unique ID
     
     -- Fields directly from XML structure
