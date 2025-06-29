@@ -1,6 +1,6 @@
 --
 -- PostgreSQL database dump
--- lawdb v0.2 dump by system
+-- lawdb v0.2 , db: lawdb, user:lawdb with permission grant, dump by system
 
 -- Dumped from database version 17.5 (Debian 17.5-1.pgdg120+1)
 -- Dumped by pg_dump version 17.5
@@ -16,6 +16,15 @@ SET check_function_bodies = false;
 SET xmloption = content;
 SET client_min_messages = warning;
 SET row_security = off;
+
+--
+-- Name: public; Type: SCHEMA; Schema: -; Owner: lawdb
+--
+
+-- *not* creating schema, since initdb creates it
+
+
+ALTER SCHEMA public OWNER TO lawdb;
 
 SET default_tablespace = '';
 
@@ -960,6 +969,111 @@ ALTER TABLE ONLY public.law_relationships
 
 ALTER TABLE ONLY public.legal_concepts
     ADD CONSTRAINT legal_concepts_law_id_fkey FOREIGN KEY (law_id) REFERENCES public.laws(id) ON DELETE CASCADE;
+
+
+--
+-- Name: TABLE article_legal_concept; Type: ACL; Schema: public; Owner: root
+--
+
+GRANT ALL ON TABLE public.article_legal_concept TO lawdb;
+
+
+--
+-- Name: TABLE articles; Type: ACL; Schema: public; Owner: root
+--
+
+GRANT ALL ON TABLE public.articles TO lawdb;
+
+
+--
+-- Name: SEQUENCE articles_id_seq; Type: ACL; Schema: public; Owner: root
+--
+
+GRANT ALL ON SEQUENCE public.articles_id_seq TO lawdb;
+
+
+--
+-- Name: TABLE law_hierarchy_relationships; Type: ACL; Schema: public; Owner: root
+--
+
+GRANT ALL ON TABLE public.law_hierarchy_relationships TO lawdb;
+
+
+--
+-- Name: SEQUENCE law_hierarchy_relationships_id_seq; Type: ACL; Schema: public; Owner: root
+--
+
+GRANT ALL ON SEQUENCE public.law_hierarchy_relationships_id_seq TO lawdb;
+
+
+--
+-- Name: TABLE law_relationships; Type: ACL; Schema: public; Owner: root
+--
+
+GRANT ALL ON TABLE public.law_relationships TO lawdb;
+
+
+--
+-- Name: SEQUENCE law_relationships_id_seq; Type: ACL; Schema: public; Owner: root
+--
+
+GRANT ALL ON SEQUENCE public.law_relationships_id_seq TO lawdb;
+
+
+--
+-- Name: TABLE laws; Type: ACL; Schema: public; Owner: root
+--
+
+GRANT ALL ON TABLE public.laws TO lawdb;
+
+
+--
+-- Name: SEQUENCE laws_id_seq; Type: ACL; Schema: public; Owner: root
+--
+
+GRANT ALL ON SEQUENCE public.laws_id_seq TO lawdb;
+
+
+--
+-- Name: TABLE legal_concepts; Type: ACL; Schema: public; Owner: root
+--
+
+GRANT ALL ON TABLE public.legal_concepts TO lawdb;
+
+
+--
+-- Name: SEQUENCE legal_concepts_id_seq; Type: ACL; Schema: public; Owner: root
+--
+
+GRANT ALL ON SEQUENCE public.legal_concepts_id_seq TO lawdb;
+
+
+--
+-- Name: DEFAULT PRIVILEGES FOR SEQUENCES; Type: DEFAULT ACL; Schema: public; Owner: root
+--
+
+ALTER DEFAULT PRIVILEGES FOR ROLE root IN SCHEMA public GRANT ALL ON SEQUENCES TO lawdb;
+
+
+--
+-- Name: DEFAULT PRIVILEGES FOR SEQUENCES; Type: DEFAULT ACL; Schema: public; Owner: lawdb
+--
+
+ALTER DEFAULT PRIVILEGES FOR ROLE lawdb IN SCHEMA public GRANT ALL ON SEQUENCES TO lawdb;
+
+
+--
+-- Name: DEFAULT PRIVILEGES FOR TABLES; Type: DEFAULT ACL; Schema: public; Owner: root
+--
+
+ALTER DEFAULT PRIVILEGES FOR ROLE root IN SCHEMA public GRANT ALL ON TABLES TO lawdb;
+
+
+--
+-- Name: DEFAULT PRIVILEGES FOR TABLES; Type: DEFAULT ACL; Schema: public; Owner: lawdb
+--
+
+ALTER DEFAULT PRIVILEGES FOR ROLE lawdb IN SCHEMA public GRANT ALL ON TABLES TO lawdb;
 
 
 --
