@@ -7,11 +7,14 @@ Feature: 法規資料庫整合與管理
   資料處理分為兩個主要階段：
   - **第一階段 (law_proc.ipynb)**：處理來源一和來源二，將基本法規資料、摘要和關鍵字載入資料庫。
   - **第二階段 (law_meta_loader.ipynb)**：處理來源三，將結構化的 JSON Meta Data 載入資料庫。
+  - **第三階段**：檢查資料庫內的各個table 資料基本符合預期
 
 # --- 第一階段 (law_proc.ipynb) ---
 
+@FEAT-001
 Feature: 階段一：載入法規原始資料與 LLM 生成資料
 
+  @SCEN-001
   Scenario: 從 XML 檔案同步法規與法條至資料庫
     Given 一個包含多部法規的 XML 檔案 "data/law_sample.xml"
     And 一個空的目標資料庫
@@ -19,6 +22,7 @@ Feature: 階段一：載入法規原始資料與 LLM 生成資料
     Then "laws" 資料表中應包含從 XML 解析出的法規紀錄
     And "articles" 資料表中應包含所有對應的法條紀錄
 
+  @SCEN-002
   Scenario: 更新 XML 資料時保留 LLM 欄位
     Given 資料庫中已存在法規 "政府採購法"，其 "llm_summary" 欄位已有資料
     And 一個包含 "政府採購法" 更新內容的 XML 檔案 "data/law_sample_update.xml"
@@ -26,18 +30,21 @@ Feature: 階段一：載入法規原始資料與 LLM 生成資料
     Then "laws" 資料表中 "政府採購法" 的 XML 衍生欄位應被更新
     And "laws" 資料表中 "政府採購法" 的 "llm_summary" 欄位應被保留
 
+  @SCEN-003
   Scenario: 匯入 LLM 生成的法規摘要
     Given 資料庫中已存在法規 "政府採購法"
     And 一個位於 "data/summary_dir_law.md" 的摘要檔案，其中包含 "政府採購法" 的摘要
     When 執行 `law_proc.ipynb` 中的摘要匯入功能
     Then "laws" 資料表中 "政府採購法" 紀錄的 "llm_summary" 欄位應被更新
 
+  @SCEN-004
   Scenario: 匯入 LLM 生成的法規關鍵字
     Given 資料庫中已存在法規 "政府採購法"
     And 一個位於 "data/keywords_law.csv" 的關鍵字檔案，其中包含 "政府採購法" 的關鍵字
     When 執行 `law_proc.ipynb` 中的關鍵字匯入功能
     Then "laws" 資料表中 "政府採購法" 紀錄的 "llm_keywords" 欄位應被更新
 
+  @SCEN-005
   Scenario: 重建特定法規在資料庫中的所有內容
     Given 資料庫中已存在 "預算法" 的完整資料
     And 已準備好 "預算法" 的所有最新來源資料 (XML, 摘要, 關鍵字)
@@ -47,8 +54,10 @@ Feature: 階段一：載入法規原始資料與 LLM 生成資料
 
 # --- 第二階段 (law_meta_loader.ipynb) ---
 
+@FEAT-002
 Feature: 階段二：載入結構化 JSON Meta Data
 
+  @SCEN-006
   Scenario: 使用 LLM 從法規內文生成 Meta Data JSON 檔案
     Given 一個法規的 Markdown 檔案 "data/new_law.md"
     And 一份定義 Meta Data 結構的規格檔案 "法律語法形式化.md"
@@ -60,6 +69,7 @@ Feature: 階段二：載入結構化 JSON Meta Data
       | json/new_law_hierarchy_relations.json |
       | json/new_law_law_relations.json     |
 
+  @SCEN-007
   Scenario: 載入一部法規的完整結構化 Meta Data
     Given 資料庫中已存在法規 "民法" 的基本資料
     And "json/" 目錄下存在對應 "民法" 的五種 Meta Data JSON 檔案:
@@ -76,11 +86,13 @@ Feature: 階段二：載入結構化 JSON Meta Data
     And "law_hierarchy_relationships" 資料表應包含 "民法" 的階層關係
     And "law_relationships" 資料表應包含 "民法" 的關聯性資料
 
+  @SCEN-008
   Scenario: 產生法規關係的視覺化圖表
     Given 系統中已載入 "民法" 與 "民法總則施行法" 的 Meta Data
     When 執行 `law_meta_loader.ipynb` 的視覺化功能
     Then 應生成一個 Mermaid 圖表，顯示 "民法" 與 "民法總則施行法" 之間的關係
 
+  @SCEN-009
   Scenario: 從既有法規匯出法規，以供後續 meta data 生成
     Given 資料庫中已存在法規 "預算法" 的完整資料
     When 執行 `law_meta_loader.ipynb` 的法規匯出功能
@@ -88,8 +100,10 @@ Feature: 階段二：載入結構化 JSON Meta Data
 
 # --- 第三階段：檢查資料庫內的各個table 資料基本符合預期 ---
 
+@FEAT-003
 Feature: 階段三：檢查資料庫內的各個table 資料基本符合預期
 
+  @SCEN-010
   Scenario: 檢查 laws 表格資料完整性
     Given 資料庫中已載入法規資料
     When 執行資料庫完整性檢查
@@ -97,6 +111,7 @@ Feature: 階段三：檢查資料庫內的各個table 資料基本符合預期
     And `laws` 表格中所有紀錄的 `pcode` 和 `xml_law_name` 欄位不應為空
     And `laws` 表格中所有紀錄的 `law_metadata` 欄位應為有效的 JSONB 格式且不為空
 
+  @SCEN-011
   Scenario: 檢查 articles 表格資料完整性
     Given 資料庫中已載入法規資料
     When 執行資料庫完整性檢查
@@ -104,6 +119,7 @@ Feature: 階段三：檢查資料庫內的各個table 資料基本符合預期
     And `articles` 表格中所有紀錄的 `law_id` 和 `xml_article_number` 欄位不應為空
     And `articles` 表格中所有紀錄的 `article_metadata` 欄位應為有效的 JSONB 格式且不為空
 
+  @SCEN-012
   Scenario: 檢查 legal_concepts 表格資料完整性
     Given 資料庫中已載入法律概念資料
     When 執行資料庫完整性檢查
@@ -111,6 +127,7 @@ Feature: 階段三：檢查資料庫內的各個table 資料基本符合預期
     And `legal_concepts` 表格中所有紀錄的 `law_id`、`code` 和 `name` 欄位不應為空
     And `legal_concepts` 表格中所有紀錄的 `data` 欄位應為有效的 JSONB 格式且不為空
 
+  @SCEN-013
   Scenario: 檢查 law_hierarchy_relationships 表格資料完整性
     Given 資料庫中已載入法規階層關係資料
     When 執行資料庫完整性檢查
@@ -118,6 +135,7 @@ Feature: 階段三：檢查資料庫內的各個table 資料基本符合預期
     And `law_hierarchy_relationships` 表格中所有紀錄的 `main_law_id`、`related_law_id` 和 `hierarchy_type` 欄位不應為空
     And `law_hierarchy_relationships` 表格中所有紀錄的 `data` 欄位應為有效的 JSONB 格式且不為空
 
+  @SCEN-014
   Scenario: 檢查 law_relationships 表格資料完整性
     Given 資料庫中已載入法規關聯性資料
     When 執行資料庫完整性檢查
@@ -125,12 +143,14 @@ Feature: 階段三：檢查資料庫內的各個table 資料基本符合預期
     And `law_relationships` 表格中所有紀錄的 `relationship_type` 欄位不應為空
     And `law_relationships` 表格中所有紀錄的 `data` 欄位應為有效的 JSONB 格式且不為空
 
+  @SCEN-015
   Scenario: 檢查特定法規的資料一致性
     Given 資料庫中已載入法規 "政府採購法" 的完整資料
     When 執行資料庫一致性檢查
     Then "政府採購法" 在 `laws` 表格中的 `id` 應與其在 `articles`、`legal_concepts`、`law_hierarchy_relationships` 和 `law_relationships` 表格中的 `law_id` 關聯正確
     And "政府採購法" 的 `llm_summary` 和 `llm_keywords` 欄位不應為空
 
+  @SCEN-016
   Scenario: 檢查摘要與關鍵字的缺漏情況並建立指標
     Given 資料庫中已載入法規資料
     When 執行摘要與關鍵字完整性檢查
@@ -140,6 +160,7 @@ Feature: 階段三：檢查資料庫內的各個table 資料基本符合預期
     And 應計算 `laws` 表格中 `llm_keywords` 欄位有值的法規比例
     And 應將這些指標記錄下來
 
+  @SCEN-017
   Scenario: 檢查 Meta Data 灌入資料庫的完整性並建立指標
     Given 資料庫中已載入結構化 Meta Data
     When 執行 Meta Data 完整性檢查
