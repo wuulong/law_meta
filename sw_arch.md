@@ -12,9 +12,39 @@
 
 這些結構化的元資料最終可用於多種目的，包括進階的法律分析、語意搜尋以及建立法律知識圖譜。
 
-## 2. 系統架��
+## 2. 系統架構
 
 本系統由數個關鍵組件構成，這些組件相互作用以達成其目標：
+
+**2.0. 系統架構 與 流程圖：**
+```
+graph TD
+    subgraph "系統架構 System Architecture"
+        A[輸入法律文件 .md 檔案] --> B(law_meta_loader.ipynb)
+        C[規格文件 法律語法形式化.md] --> B
+        D[全國法規資料庫 XML] --> E(law_proc.ipynb)
+        E --> F(PostgreSQL 資料庫)
+        B --> G[LLM Gemini]
+        G --> H[暫存文字檔案 txt/ 目錄]
+        H --> I[元資料 JSON 檔案 json/ 目錄]
+        I --> F
+        B --> F
+        F -- 查詢/互動 --> J(A2A 代理)
+        J --> F
+    end
+
+    subgraph "新法律處理流程 New Law Processing Flow"
+        K[新法律 XML 檔案] --> L(law_proc.ipynb)
+        L -- 基礎資料載入 --> M(PostgreSQL 資料庫)
+        L -- 摘要/關鍵字匯入 --> M
+        N[新法律 Markdown 檔案] --> O(law_meta_loader.ipynb)
+        P[法律語法形式化.md] --> O
+        O -- 提示生成 --> Q(LLM)
+        Q -- 原始輸出 --> R[txt/ 目錄]
+        R -- 解析 --> S[json/ 目錄]
+        S -- 深度元資料同步 --> M
+    end
+```
 
 **2.1. 核心組件：**
 
@@ -140,3 +170,6 @@
 *   **`features/`：** BDD 測試相關檔案。
 
 本文件提供了系統架構和使用的概況。有關更詳細的範例和具體的實作細節，請參閱 `law_proc.ipynb` 和 `law_meta_loader.ipynb` 筆記本中的註解和程式碼。
+
+
+
