@@ -184,24 +184,24 @@ Feature: 階段四：命令列工具，能夠利用下達不同參數，做到�
 
   @SCEN-018
   Scenario: 透過命令列工具匯入多個法規的 XML 資料，法規清單從檔案來
-    Given 一個包含多個法規 XML 檔案路徑的清單檔案 "data/law_xml_list.txt"
+    Given 一個包含多個法規 XML 檔案路徑的清單檔案 "data/xml_sample.xml"
     And 資料庫中不存在清單中的法規
-    When 執行命令列工具 `python law_cli.py --import-xml-list data/law_xml_list.txt`
+    When 執行命令列工具 `python law_cli.py --import-xml data/xml_sample.xml`
     Then "laws" 資料表中應包含從 XML 解析出的清單中所有法規紀錄
     And "articles" 資料表中應包含所有對應的法條紀錄
 
   @SCEN-019
   Scenario: 透過命令列工具更新多個法規的 LLM 摘要，法規清單從檔案來
     Given 資料庫中已存在多個法規
-    And 一個包含多法規名稱與摘要內容的檔案 "data/law_summary.txt"
-    When 執行命令列工具 `python law_cli.py --update-summary data/law_summary.txt` 或 `python law_cli.py -s data/law_summary.txt`
+    And 一個包含多法規名稱與摘要內容的檔案 "data/summary_sample.md"
+    When 執行命令列工具 `python law_cli.py --update-summary data/summary_sample.md` 或 `python law_cli.py -s data/law_summary.txt`
     Then "laws" 資料表中清單中所有法規紀錄的 "llm_summary" 欄位應被更新
 
   @SCEN-020
   Scenario: 透過命令列工具更新多個法規的 LLM 關鍵字，法規清單從檔案來
     Given 資料庫中已存在多個法規
-    And 一個包含法規名稱與關鍵字檔案路徑對應的清單檔案 "data/law_keywords.csv"
-    When 執行命令列工具 `python law_cli.py --update-keywords data/law_keywords.csv` 或 `python law_cli.py -k data/law_keyword_list.txt`
+    And 一個包含法規名稱與關鍵字檔案路徑對應的清單檔案 "data/keywords_sample.csv"
+    When 執行命令列工具 `python law_cli.py --update-keywords data/keywords_sample.csv` 或 `python law_cli.py -k data/law_keyword_list.txt`
     Then "laws" 資料表中清單中所有法規紀錄的 "llm_keywords" 欄位應被更新
 
   @SCEN-021
@@ -222,7 +222,7 @@ Feature: 階段四：命令列工具，能夠利用下達不同參數，做到�
   Scenario: 透過命令列工具匯出多個法規的完整資料為 Markdown 檔案，法規清單從檔案來
     Given 資料庫中已存在多個法規的完整資料
     And 一個包含要匯出法規名稱的清單檔案 "data/law_export_list.txt"
-    When 執行命令列工具 `python law_cli.py --export-law-list data/law_export_list.txt output_dir/` 或 `python law_cli.py -e data/law_export_list.txt output_dir/`
+    When 執行命令列工具 `python law_cli.py --export-law-list data/law_export_list.txt --output-dir output_dir/` 或 `python law_cli.py -e data/law_export_list.txt output_dir/`
     Then "output_dir/" 目錄下應生成清單中每個法規對應的 Markdown 檔案，其中包含該法規的完整條文內容及相關 Meta Data (若有)
 
   @SCEN-024
