@@ -2,6 +2,7 @@ import xml.etree.ElementTree as ET
 import psycopg2
 from datetime import datetime
 import json
+import re
 
 class LawProcessor:
     def __init__(self, db_config):
@@ -143,35 +144,29 @@ class LawProcessor:
             with open(summary_file_path, 'r', encoding='utf-8') as f:
                 content = f.read()
 
-            # Split content by "----- File: <filename> -----"
-            summary_blocks = re.split(r'----- File: .*?\n', content)
+            # Split content by "----- File: <filename> -----" and capture the filename
+            # The regex now captures the law name (filename without .txt)
+            parts = re.split(r'----- File: (.*?)\.txt -----\n', content)
             
-            for block in summary_blocks:
-                block = block.strip()
-                if not block:
+            # The first element is usually empty if the file starts with a delimiter
+            # Then it's (law_name, content, law_name, content, ...)
+            for i in range(1, len(parts), 2):
+                law_name = parts[i].strip()
+                llm_summary = parts[i+1].strip()
+                
+                if not law_name or not llm_summary:
+                    print(f"Warning: Could not parse law name or summary from part starting with: {parts[i][:50]}...")
                     continue
 
-                # Extract law name and summary content
-                law_name_match = re.search(r'\*\*法規名稱：(.*?)\*\*', block)
-                summary_content_match = re.search(r'\*\*關鍵資訊摘要（300字以內）\*\*\s*(.*?)(?=\n\n----- File: |$)', block, re.DOTALL)
-                if not summary_content_match: # Try alternative summary header
-                    summary_content_match = re.search(r'\*\*摘要（300字）\*\*\s*(.*?)(?=\n\n----- File: |$)', block, re.DOTALL)
-
-                if law_name_match and summary_content_match:
-                    law_name = law_name_match.group(1).strip()
-                    llm_summary = summary_content_match.group(1).strip()
-                    
-                    print(f"Updating summary for law: {law_name}")
-                    cur.execute(
-                        """
-                        UPDATE laws SET llm_summary = %s WHERE xml_law_name = %s
-                        """,
-                        (llm_summary, law_name)
-                    )
-                    if cur.rowcount == 0:
-                        print(f"Warning: Law '{law_name}' not found for summary update.")
-                else:
-                    print(f"Warning: Could not parse law name or summary from block: {block[:100]}...") # Show first 100 chars of problematic block
+                print(f"Updating summary for law: {law_name}")
+                cur.execute(
+                    """
+                    UPDATE laws SET llm_summary = %s WHERE xml_law_name = %s
+                    """,
+                    (llm_summary, law_name)
+                )
+                if cur.rowcount == 0:
+                    print(f"Warning: Law '{law_name}' not found for summary update.")
 
             conn.commit()
         except Exception as e:
@@ -322,9 +317,9 @@ class LawProcessor:
             print(f"  law_metadata 為空筆數: {null_laws_metadata}")
             print(f"  llm_summary 為空筆數: {null_laws_summary}")
             print(f"  llm_keywords 為空筆數: {null_laws_keywords}")
-            print(f"  llm_summary 完整率: {((total_laws - null_laws_summary) / total_laws * 100):.2f}%") if total_laws > 0 else "0.00%")
-            print(f"  llm_keywords 完整率: {((total_laws - null_laws_keywords) / total_laws * 100):.2f}%") if total_laws > 0 else "0.00%")
-            print(f"  law_metadata 完整率: {((total_laws - null_laws_metadata) / total_laws * 100):.2f}%") if total_laws > 0 else "0.00%")
+            print(f"  llm_summary 完整率: {((total_laws - null_laws_summary) / total_laws * 100):.2f}%" if total_laws > 0 else "0.00%")
+            print(f"  llm_keywords 完整率: {((total_laws - null_laws_keywords) / total_laws * 100):.2f}%" if total_laws > 0 else "0.00%")
+            print(f"  law_metadata 完整率: {((total_laws - null_laws_metadata) / total_laws * 100):.2f}%" if total_laws > 0 else "0.00%")
 
             # 檢查 articles 表格
             cur.execute("SELECT COUNT(*) FROM articles")
@@ -337,7 +332,7 @@ class LawProcessor:
             print(f"articles 表格總筆數: {total_articles}")
             print(f"  law_id 或 xml_article_number 為空筆數: {null_articles_basic}")
             print(f"  article_metadata 為空筆數: {null_articles_metadata}")
-            print(f"  article_metadata 完整率: {((total_articles - null_articles_metadata) / total_articles * 100):.2f}%") if total_articles > 0 else "0.00%")
+            print(f"  article_metadata 完整率: {((total_articles - null_articles_metadata) / total_articles * 100):.2f}%" if total_articles > 0 else "0.00%")
 
             # 檢查 legal_concepts 表格
             cur.execute("SELECT COUNT(*) FROM legal_concepts")
@@ -350,7 +345,7 @@ class LawProcessor:
             print(f"legal_concepts 表格總筆數: {total_legal_concepts}")
             print(f"  law_id, code 或 name 為空筆數: {null_legal_concepts_basic}")
             print(f"  data 為空筆數: {null_legal_concepts_data}")
-            print(f"  data 完整率: {((total_legal_concepts - null_legal_concepts_data) / total_legal_concepts * 100):.2f}%") if total_legal_concepts > 0 else "0.00%")
+            print(f"  data 完整率: {((total_legal_concepts - null_legal_concepts_data) / total_legal_concepts * 100):.2f}%" if total_legal_concepts > 0 else "0.00%")
 
             # 檢查 law_hierarchy_relationships 表格
             cur.execute("SELECT COUNT(*) FROM law_hierarchy_relationships")
@@ -363,7 +358,7 @@ class LawProcessor:
             print(f"law_hierarchy_relationships 表格總筆數: {total_lhr}")
             print(f"  main_law_id, related_law_id 或 hierarchy_type 為空筆數: {null_lhr_basic}")
             print(f"  data 為空筆數: {null_lhr_data}")
-            print(f"  data 完整率: {((total_lhr - null_lhr_data) / total_lhr * 100):.2f}%") if total_lhr > 0 else "0.00%")
+            print(f"  data 完整率: {((total_lhr - null_lhr_data) / total_lhr * 100):.2f}%" if total_lhr > 0 else "0.00%")
 
             # 檢查 law_relationships 表格
             cur.execute("SELECT COUNT(*) FROM law_relationships")
@@ -376,7 +371,7 @@ class LawProcessor:
             print(f"law_relationships 表格總筆數: {total_lr}")
             print(f"  relationship_type 為空筆數: {null_lr_basic}")
             print(f"  data 為空筆數: {null_lr_data}")
-            print(f"  data 完整率: {((total_lr - null_lr_data) / total_lr * 100):.2f}%") if total_lr > 0 else "0.00%")
+            print(f"  data 完整率: {((total_lr - null_lr_data) / total_lr * 100):.2f}%" if total_lr > 0 else "0.00%")
 
         except Exception as e:
             print(f"Error during integrity check: {e}")
