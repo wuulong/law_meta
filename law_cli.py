@@ -20,8 +20,8 @@ def main():
                                      help='Path to a CSV file containing law names and keywords to update (e.g., data/keywords_law.csv).')
     group_import_update.add_argument('-g', '--generate-meta-list', type=str,
                                      help='Path to a file containing a list of law names and Markdown file paths to generate metadata from.')
-    group_import_update.add_argument('-l', '--load-meta-data', type=str,
-                                     help='Law name to load its generated metadata into the database.')
+    group_import_update.add_argument('-m', '--import-meta-list', type=str,
+                                     help='Path to a file containing a list of law names to import their generated metadata into the database.')
 
     # Group for delete operations
     group_delete = parser.add_argument_group('Delete Operations')
@@ -54,8 +54,8 @@ def main():
         law_processor.update_keywords(args.update_keywords)
     elif args.generate_meta_list:
         law_metadata_manager.generate_meta_list(args.generate_meta_list)
-    elif args.load_meta_data:
-        law_metadata_manager.load_meta_data_to_db(args.load_meta_data)
+    elif args.import_meta_list:
+        law_metadata_manager.load_meta_data_list_to_db(args.import_meta_list)
     elif args.delete_law_list:
         law_processor.delete_law_list(args.delete_law_list)
     elif args.export_law_list:

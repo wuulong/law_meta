@@ -22,6 +22,233 @@ class LawMetadataManager:
     def _get_db_connection(self):
         return psycopg2.connect(**self.db_config)
 
+    def _format_article_number(self, article_number_str):
+        """
+        Converts various article number formats (e.g., "第一條", "第1條", "第 1 條")
+        to a standard "第 X 條" format (with Arabic numerals and a space).
+        """
+        num_map = {'零': 0, '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9,
+                   '十': 10, '百': 100, '千': 1000}
+        
+        def chinese_to_arabic(num_str):
+            if num_str.isdigit():
+                return int(num_str)
+            
+            result = 0
+            tmp = 0
+            for char in num_str:
+                if char in num_map:
+                    val = num_map[char]
+                    if val >= 10: # '十', '百', '千'
+                        if tmp == 0: # Handles cases like '十', '百', '千' directly
+                            tmp = 1
+                        result += tmp * val
+                        tmp = 0
+                    else: # Single digit
+                        tmp = tmp * 10 + val
+                else: # Handle cases like '二十', '三十'
+                    if char == '十':
+                        if tmp == 0:
+                            tmp = 1
+                        result += tmp * 10
+                        tmp = 0
+            result += tmp # Add any remaining single digit
+            return result
+
+        # Remove spaces and then try to parse
+        article_number_str = article_number_str.replace(' ', '')
+
+        match = re.match(r'第(\S+)條', article_number_str)
+        if match:
+            num_part = match.group(1)
+            try:
+                # Try converting Chinese numerals first
+                arabic_num = chinese_to_arabic(num_part)
+            except ValueError: # Catch ValueError if int() conversion fails
+                # Fallback to direct integer conversion if Chinese conversion fails
+                arabic_num = int(num_part)
+            return f"第 {arabic_num} 條"
+        return article_number_str # Return original if no match
+
+    def load_meta_data_list_to_db(self, law_list_file_path):
+        with open(law_list_file_path, 'r', encoding='utf-8') as f:
+            law_names = [line.strip() for line in f if line.strip()]
+        
+        for law_name in law_names:
+            print(f"Loading metadata for law: {law_name}")
+            self._load_single_law_metadata_to_db(law_name)
+
+    def _load_single_law_metadata_to_db(self, law_name):
+        conn = None
+        try:
+            conn = self._get_db_connection()
+            cur = conn.cursor()
+
+            json_dir = 'json'
+            file_names = {
+                "law_regulation": f"{law_name}_law_regulation.json",
+                "law_articles": f"{law_name}_law_articles.json",
+                "legal_concepts": f"{law_name}_legal_concepts.json",
+                "hierarchy_relations": f"{law_name}_hierarchy_relations.json",
+                "law_relations": f"{law_name}_law_relations.json",
+            }
+
+            # Get law_id first, as it's needed for articles and relationships
+            law_id = None
+            cur.execute("SELECT id FROM laws WHERE xml_law_name = %s", (law_name,))
+            law_id_result = cur.fetchone()
+            if law_id_result:
+                law_id = law_id_result[0]
+            else:
+                print(f"Error: Law '{law_name}' not found in DB. Cannot load metadata.")
+                return
+
+            # 1. Load Law Meta Data (law_regulation.json)
+            law_regulation_path = os.path.join(json_dir, file_names["law_regulation"])
+            if os.path.exists(law_regulation_path):
+                with open(law_regulation_path, 'r', encoding='utf-8') as f:
+                    law_metadata = json.load(f)
+                cur.execute("UPDATE laws SET law_metadata = %s WHERE id = %s", (json.dumps(law_metadata), law_id))
+                print(f"Loaded law_metadata for {law_name}")
+            else:
+                print(f"Warning: {law_regulation_path} not found. Skipping law_metadata.")
+
+            # 2. Load Article Meta Data (law_articles.json)
+            law_articles_path = os.path.join(json_dir, file_names["law_articles"])
+            if os.path.exists(law_articles_path):
+                with open(law_articles_path, 'r', encoding='utf-8') as f:
+                    articles_metadata = json.load(f)
+                
+                for article_meta in articles_metadata:
+                    article_number = article_meta.get('條號')
+                    if article_number:
+                        # Convert to standard "第 X 條" format
+                        formatted_article_number = self._format_article_number(article_number)
+                        
+                        cur.execute("UPDATE articles SET article_metadata = %s WHERE law_id = %s AND xml_article_number = %s", (json.dumps(article_meta), law_id, formatted_article_number))
+                        if cur.rowcount == 0:
+                            print(f"Warning: Article '{article_number}' (formatted: '{formatted_article_number}') for law '{law_name}' not found in DB for article_metadata update.")
+                    else:
+                        print(f"Warning: Article metadata missing '條號' for law '{law_name}'.")
+                print(f"Loaded article_metadata for {law_name}")
+            else:
+                print(f"Warning: {law_articles_path} not found. Skipping article_metadata.")
+
+            # 3. Load Legal Concept Meta Data (legal_concepts.json)
+            legal_concepts_path = os.path.join(json_dir, file_names["legal_concepts"])
+            if os.path.exists(legal_concepts_path):
+                with open(legal_concepts_path, 'r', encoding='utf-8') as f:
+                    legal_concepts_data = json.load(f)
+                
+                # Delete existing legal concepts for this law to avoid duplicate key errors
+                cur.execute("DELETE FROM legal_concepts WHERE law_id = %s", (law_id,))
+                
+                for concept in legal_concepts_data:
+                    code = concept.get('代號')
+                    name = concept.get('詞彙名稱')
+                    if code and name:
+                        cur.execute("INSERT INTO legal_concepts (law_id, code, name, data) VALUES (%s, %s, %s, %s)",
+                                    (law_id, code, name, json.dumps(concept)))
+                    else:
+                        print(f"Warning: Legal concept missing '代號' or '詞彙名稱' for law '{law_name}'.")
+                conn.commit() # Commit legal concepts separately
+                print(f"Loaded legal_concepts for {law_name}")
+            else:
+                print(f"Warning: {legal_concepts_path} not found. Skipping legal_concepts.")
+
+            # 4. Load Law Hierarchy Relationship Meta Data (hierarchy_relations.json)
+            hierarchy_relations_path = os.path.join(json_dir, file_names["hierarchy_relations"])
+            if os.path.exists(hierarchy_relations_path):
+                with open(hierarchy_relations_path, 'r', encoding='utf-8') as f:
+                    hierarchy_data = json.load(f)
+                
+                cur.execute("DELETE FROM law_hierarchy_relationships WHERE main_law_id = %s OR related_law_id = %s", (law_id, law_id))
+                for rel in hierarchy_data:
+                    rel_code = rel.get('關係代號')
+                    main_law_name = rel.get('主法規')
+                    related_law_name = rel.get('關聯法規')
+                    hierarchy_type = rel.get('階層關係類型')
+
+                    if rel_code and main_law_name and related_law_name and hierarchy_type:
+                        main_law_id_rel = None
+                        cur.execute("SELECT id FROM laws WHERE xml_law_name = %s", (main_law_name,))
+                        main_law_id_result = cur.fetchone()
+                        if main_law_id_result: main_law_id_rel = main_law_id_result[0]
+
+                        related_law_id_rel = None
+                        cur.execute("SELECT id FROM laws WHERE xml_law_name = %s", (related_law_name,))
+                        related_law_id_result = cur.fetchone()
+                        if related_law_id_result: related_law_id_rel = related_law_id_result[0]
+
+                        if main_law_id_rel and related_law_id_rel:
+                            cur.execute("INSERT INTO law_hierarchy_relationships (relationship_code, main_law_id, main_law_name, related_law_id, related_law_name, hierarchy_type, data) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                                        (rel_code, main_law_id_rel, main_law_name, related_law_id_rel, related_law_name, hierarchy_type, json.dumps(rel)))
+                        else:
+                            print(f"Warning: Could not resolve main_law_id or related_law_id for hierarchy relationship '{rel_code}'.")
+                    else:
+                        print(f"Warning: Hierarchy relationship missing required fields for law '{law_name}'.")
+                print(f"Loaded law_hierarchy_relationships for {law_name}")
+            else:
+                print(f"Warning: {hierarchy_relations_path} not found. Skipping law_hierarchy_relationships.")
+
+            # 5. Load Law Relationship Meta Data (law_relations.json)
+            law_relations_path = os.path.join(json_dir, file_names["law_relations"])
+            if os.path.exists(law_relations_path):
+                with open(law_relations_path, 'r', encoding='utf-8') as f:
+                    law_relations_data = json.load(f)
+                
+                cur.execute("DELETE FROM law_relationships WHERE main_law_id = %s OR related_law_id = %s", (law_id, law_id))
+                for rel in law_relations_data:
+                    rel_code = rel.get('代號')
+                    rel_type = rel.get('關聯類型')
+                    main_law_name = rel.get('主法規')
+                    main_article_number = rel.get('主法規條號')
+                    related_law_name = rel.get('關聯法規')
+                    related_article_number = rel.get('關聯法規條號')
+
+                    if rel_code and rel_type:
+                        main_law_id_rel = None
+                        if main_law_name:
+                            cur.execute("SELECT id FROM laws WHERE xml_law_name = %s", (main_law_name,))
+                            main_law_id_result = cur.fetchone()
+                            if main_law_id_result: main_law_id_rel = main_law_id_result[0]
+                        
+                        main_article_id_rel = None
+                        if main_law_id_rel and main_article_number:
+                            cur.execute("SELECT id FROM articles WHERE law_id = %s AND xml_article_number = %s", (main_law_id_rel, main_article_number))
+                            main_article_id_result = cur.fetchone()
+                            if main_article_id_result: main_article_id_rel = main_article_id_result[0]
+
+                        related_law_id_rel = None
+                        if related_law_name:
+                            cur.execute("SELECT id FROM laws WHERE xml_law_name = %s", (related_law_name,))
+                            related_law_id_result = cur.fetchone()
+                            if related_law_id_result: related_law_id_rel = related_law_id_result[0]
+
+                        related_article_id_rel = None
+                        if related_law_id_rel and related_article_number:
+                            cur.execute("SELECT id FROM articles WHERE law_id = %s AND xml_article_number = %s", (related_law_id_rel, related_article_number))
+                            related_article_id_result = cur.fetchone()
+                            if related_article_id_result: related_article_id_rel = related_article_id_result[0]
+
+                        cur.execute("INSERT INTO law_relationships (code, relationship_type, main_law_id, main_law_name, main_article_id, related_law_id, related_law_name, related_article_id, data) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                                    (rel_code, rel_type, main_law_id_rel, main_law_name, main_article_id_rel, related_law_id_rel, related_law_name, related_article_id_rel, json.dumps(rel)))
+                    else:
+                        print(f"Warning: Law relationship missing '代號' or '關聯類型' for law '{law_name}'.")
+                print(f"Loaded law_relationships for {law_name}")
+            else:
+                print(f"Warning: {law_relations_path} not found. Skipping law_relationships.")
+
+            conn.commit()
+        except Exception as e:
+            print(f"Error loading metadata for {law_name}: {e}")
+            if conn:
+                conn.rollback()
+        finally:
+            if conn:
+                cur.close()
+                conn.close()
+
     def generate_meta_list(self, markdown_file_list_path):
         with open(markdown_file_list_path, 'r', encoding='utf-8') as f:
             law_names = [line.strip() for line in f if line.strip()]
@@ -97,7 +324,7 @@ class LawMetadataManager:
                                       generate_legal_concepts=True,
                                       generate_hierarchy_relations=True,
                                       generate_law_relations=True,
-                                      generate_law_articles=True): # Changed default to False
+                                      generate_law_articles=False): # Changed default to False
         law_content = ""
         try:
             with open(markdown_path, 'r', encoding='utf-8') as f:
