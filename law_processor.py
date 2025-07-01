@@ -11,13 +11,9 @@ class LawProcessor:
     def _get_db_connection(self):
         return psycopg2.connect(**self.db_config)
 
-    def import_xml_list(self, xml_file_list_path):
-        with open(xml_file_list_path, 'r', encoding='utf-8') as f:
-            xml_files = [line.strip() for line in f if line.strip()]
-        
-        for xml_file in xml_files:
-            print(f"Processing XML file: {xml_file}")
-            self._process_single_xml(xml_file)
+    def import_xml(self, xml_file_path):
+        print(f"Processing XML file: {xml_file_path}")
+        self._process_single_xml(xml_file_path)
 
     def _process_single_xml(self, xml_file_path):
         tree = ET.parse(xml_file_path)
@@ -268,8 +264,6 @@ class LawProcessor:
                     exported_content = f"# {law_data[0]}\n\n"
                     if law_data[1]:
                         exported_content += f"## 前言\n{law_data[1]}\n\n"
-                    if law_data[2]:
-                        exported_content += f"## 摘要\n{law_data[2]}\n\n"
                     
                     cur.execute("SELECT xml_chapter_section, xml_article_number, xml_article_content FROM articles WHERE law_id = (SELECT id FROM laws WHERE xml_law_name = %s) ORDER BY id", (law_name,))
                     articles = cur.fetchall()
@@ -277,9 +271,9 @@ class LawProcessor:
                     current_chapter_section = None
                     for chapter_section, article_number, article_content in articles:
                         if chapter_section and chapter_section != current_chapter_section:
-                            exported_content += f"### {chapter_section}\n\n"
+                            exported_content += f"## {chapter_section}\n\n"
                             current_chapter_section = chapter_section
-                        exported_content += f"#### {article_number}\n{article_content}\n\n"
+                        exported_content += f"### {article_number}\n{article_content}\n\n"
                     
                     output_file_path = os.path.join(output_dir, f"{law_name}.md")
                     with open(output_file_path, 'w', encoding='utf-8') as of:
