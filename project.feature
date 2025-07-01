@@ -175,3 +175,58 @@ Feature: 階段三：檢查資料庫內的各個table 資料基本符合預期
     And 應計算 `law_hierarchy_relationships` 表格中 `data` 欄位有值的階層關係比例
     And 應計算 `law_relationships` 表格中 `data` 欄位有值的關聯性資料比例
     And 應將這些指標記錄下來
+
+# --- 階段四：命令列工具 ---
+
+@FEAT-004
+Feature: 階段四：命令列工具，能夠利用下達不同參數，做到維護資料庫內資料的功能
+
+  @SCEN-018
+  Scenario: 透過命令列工具匯入多個法規的 XML 資料，法規清單從檔案來
+    Given 一個包含多個法規 XML 檔案路徑的清單檔案 "data/law_xml_list.txt"
+    And 資料庫中不存在清單中的法規
+    When 執行命令列工具 `python cli.py --import-xml-list data/law_xml_list.txt`
+    Then "laws" 資料表中應包含從 XML 解析出的清單中所有法規紀錄
+    And "articles" 資料表中應包含所有對應的法條紀錄
+
+  @SCEN-019
+  Scenario: 透過命令列工具更新多個法規的 LLM 摘要，法規清單從檔案來
+    Given 資料庫中已存在多個法規
+    And 一個包含法規名稱與摘要檔案路徑對應的清單檔案 "data/law_summary_list.txt"
+    When 執行命令列工具 `python cli.py --update-summary-list data/law_summary_list.txt`
+    Then "laws" 資料表中清單中所有法規紀錄的 "llm_summary" 欄位應被更新
+
+  @SCEN-020
+  Scenario: 透過命令列工具更新多個法規的 LLM 關鍵字，法規清單從檔案來
+    Given 資料庫中已存在多個法規
+    And 一個包含法規名稱與關鍵字檔案路徑對應的清單檔案 "data/law_keyword_list.txt"
+    When 執行命令列工具 `python cli.py --update-keyword-list data/law_keyword_list.txt`
+    Then "laws" 資料表中清單中所有法規紀錄的 "llm_keywords" 欄位應被更新
+
+  @SCEN-021
+  Scenario: 透過命令列工具從多個法規的 Markdown 檔案生成 Meta Data，法規清單從檔案來
+    Given 一個包含法規名稱與 Markdown 檔案路徑對應的清單檔案 "data/law_markdown_list.txt"
+    And 一份定義 Meta Data 結構的規格檔案 "法律語法形式化.md"
+    When 執行命令列工具 `python cli.py --generate-meta-list data/law_markdown_list.txt`
+    Then 應在 "json/" 目錄下生成清單中每個法規對應的五種 Meta Data JSON 檔案
+
+  @SCEN-022
+  Scenario: 透過命令列工具刪除多個法規的所有資料，法規清單從檔案來
+    Given 資料庫中已存在多個法規
+    And 一個包含要刪除法規名稱的清單檔案 "data/law_delete_list.txt"
+    When 執行命令列工具 `python cli.py --delete-law-list data/law_delete_list.txt`
+    Then 資料庫中所有與清單中法規相關的紀錄應被清除 (laws, articles, legal_concepts, law_hierarchy_relationships, law_relationships)
+
+  @SCEN-023
+  Scenario: 透過命令列工具匯出多個法規的完整資料為 Markdown 檔案，法規清單從檔案來
+    Given 資料庫中已存在多個法規的完整資料
+    And 一個包含要匯出法規名稱的清單檔案 "data/law_export_list.txt"
+    When 執行命令列工具 `python cli.py --export-law-list data/law_export_list.txt output_dir/`
+    Then "output_dir/" 目錄下應生成清單中每個法規對應的 Markdown 檔案，其中包含該法規的完整條文內容及相關 Meta Data (若有)
+
+  @SCEN-024
+  Scenario: 透過命令列工具執行資料庫完整性檢查並輸出報告
+    Given 資料庫中已載入法規資料
+    When 執行命令列工具 `python cli.py --check-integrity`
+    Then 應輸出資料庫完整性檢查報告，包含各表格的資料量、空值比例等指標
+    And 報告應儲存至預設的報告檔案路徑
