@@ -193,8 +193,8 @@ Feature: 階段四：命令列工具，能夠利用下達不同參數，做到�
   @SCEN-019
   Scenario: 透過命令列工具更新多個法規的 LLM 摘要，法規清單從檔案來
     Given 資料庫中已存在多個法規
-    And 一個包含法規名稱與摘要檔案路徑對應的清單檔案 "data/law_summary_list.txt"
-    When 執行命令列工具 `python law_cli.py --update-summary-list data/law_summary_list.txt` 或 `python law_cli.py -s data/law_summary_list.txt`
+    And 一個包含多法規名稱與摘要內容的檔案 "data/law_summary.txt"
+    When 執行命令列工具 `python law_cli.py --update-summary data/law_summary.txt` 或 `python law_cli.py -s data/law_summary.txt`
     Then "laws" 資料表中清單中所有法規紀錄的 "llm_summary" 欄位應被更新
 
   @SCEN-020
