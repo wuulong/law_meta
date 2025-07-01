@@ -43,8 +43,13 @@ def main():
     args = parser.parse_args()
     #print(f"Parsed arguments: {args}")
 
+    # Determine if Gemini API is needed
+    init_gemini = False
+    if args.generate_meta_list:
+        init_gemini = True
+
     law_processor = LawProcessor(db_config)
-    law_metadata_manager = LawMetadataManager(db_config, gemini_api_key)
+    law_metadata_manager = LawMetadataManager(db_config, gemini_api_key, init_gemini=init_gemini)
 
     if args.import_xml:
         law_processor.import_xml(args.import_xml)

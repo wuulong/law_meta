@@ -9,14 +9,17 @@ import time
 import psycopg2
 
 class LawMetadataManager:
-    def __init__(self, db_config, gemini_api_key):
+    def __init__(self, db_config, gemini_api_key, init_gemini=True):
         self.db_config = db_config
-        self.client = genai.Client(api_key=gemini_api_key) # Initialize client once
-        
-        # Upload static spec file once
-        # Assuming 法律語法形式化.md is in the root directory of the project
-        self.spec_file = self.client.files.upload(file="法律語法形式化.md", config={'mime_type':"text/markdown"})
-        print(f"Uploaded static spec file: {self.spec_file.uri}")
+        self.client = None
+        self.spec_file = None
+        if init_gemini:
+            self.client = genai.Client(api_key=gemini_api_key) # Initialize client once
+            
+            # Upload static spec file once
+            # Assuming 法律語法形式化.md is in the root directory of the project
+            self.spec_file = self.client.files.upload(file="法律語法形式化.md", config={'mime_type':"text/markdown"})
+            print(f"Uploaded static spec file: {self.spec_file.uri}")
 
 
     def _get_db_connection(self):
@@ -382,6 +385,102 @@ class LawMetadataManager:
             },
         }
 
+    def _process_raw_text_to_json(self, raw_text, tmp_output_file, output_file, meta_type_key):
+        """
+        Helper to extract, clean, parse JSON from raw text, and save it.
+        Returns True on success, False on failure.
+        """
+        try:
+            json_match = re.search(r'```json\n(.*?)```', raw_text, re.DOTALL)
+            if json_match:
+                json_string = json_match.group(1).strip()
+            else:
+                json_string = ""
+                print(f"Warning: No JSON block found in raw text for {meta_type_key}.")
+
+            json_string = re.sub(r'//.*\n', '', json_string)
+            json_string = re.sub(r'/\*.*?\*/', '', json_string, flags=re.DOTALL)
+
+            if not json_string:
+                raise json.JSONDecodeError("Empty JSON string after extraction and cleaning.", raw_text, 0)
+
+            json_data = json.loads(json_string)
+            with open(tmp_output_file, 'w', encoding='utf-8') as f:
+                json.dump(json_data, f, ensure_ascii=False, indent=2)
+            shutil.move(tmp_output_file, output_file)
+            print(f"Successfully processed and saved {meta_type_key} from raw text to {output_file}")
+            return True
+        except json.JSONDecodeError as e:
+            print(f"Error decoding JSON from raw text for {meta_type_key}: {e}")
+            print(f"Problematic raw text content: {raw_text[:500]}...")
+            return False
+        except Exception as e:
+            print(f"Error processing raw text for {meta_type_key}: {e}")
+            return False
+
+    def _generate_single_law_metadata(self, law_name, markdown_path,
+                                      generate_law_regulation=True,
+                                      generate_legal_concepts=True,
+                                      generate_hierarchy_relations=True,
+                                      generate_law_relations=True,
+                                      generate_law_articles=False): # Changed default to False
+        law_content = ""
+        try:
+            with open(markdown_path, 'r', encoding='utf-8') as f:
+                law_content = f.read()
+        except FileNotFoundError:
+            alternative_markdown_path = os.path.join('output_dir', f'{law_name}.md')
+            print(f"File not found in {markdown_path}, trying {alternative_markdown_path}")
+            try:
+                with open(alternative_markdown_path, 'r', encoding='utf-8') as f:
+                    law_content = f.read()
+            except FileNotFoundError:
+                print(f"Error: Markdown file not found at {markdown_path} or {alternative_markdown_path}")
+                return
+
+        output_dir = 'json'
+        tmp_output_dir = 'tmp/meta_data_temp' # New temporary directory for meta data
+        os.makedirs(output_dir, exist_ok=True)
+        os.makedirs(tmp_output_dir, exist_ok=True)
+
+        # Define file names based on the specification
+        file_names = {
+            "law_regulation": f"{law_name}_law_regulation.json",
+            "law_articles": f"{law_name}_law_articles.json",
+            "legal_concepts": f"{law_name}_legal_concepts.json",
+            "hierarchy_relations": f"{law_name}_hierarchy_relations.json",
+            "law_relations": f"{law_name}_law_relations.json",
+        }
+
+        # Prompts for each metadata type
+        prompt_configs = {
+            'law_regulation': {
+                'flag': generate_law_regulation,
+                'prompt': f"根據提供的法規內容和法律語法形式化規範，產生法規 Meta Data (Law Meta Data)，盡可能詳列資訊，不要省略。請將 JSON 內容輸出，並用 '```json' 和 '```' 包裹。",
+                'output_key': 'law_regulation'
+            },
+            'legal_concepts': {
+                'flag': generate_legal_concepts,
+                'prompt': f"根據提供的法規內容和法律語法形式化規範，產生法律概念 Meta Data (Legal Concept Meta Data)，注意並非 法規 Meta Data，請列出全部概念，不要省略。請將 JSON 內容輸出，並用 '```json' 和 '```' 包裹。",
+                'output_key': 'legal_concepts'
+            },
+            'hierarchy_relations': {
+                'flag': generate_hierarchy_relations,
+                'prompt': f"根據提供的法規內容和法律語法形式化規範，產生法規階層關係 Meta Data，不包含法條間關聯性，請列出全部法規間階層關係，尤其包含上位關係，不要省略。請將 JSON 內容輸出，並用 '```json' 和 '```' 包裹。",
+                'output_key': 'hierarchy_relations'
+            },
+            'law_relations': {
+                'flag': generate_law_relations,
+                'prompt': f"根據提供的法規內容和法律語法形式化規範，產生法規關聯性 Meta Data，不包含本法規內部法條之間的關聯性，請列出法規間全部關聯性，不要省略。請將 JSON 內容輸出，並用 '```json' 和 '```' 包裹。",
+                'output_key': 'law_relations'
+            },
+            'law_articles': { # Set flag to False here
+                'flag': False,
+                'prompt': f"根據提供的法規內容和法律語法形式化規範，產生所有法條的 Meta Data (Article Meta Data)。為每條法條生成一個 JSON 物件，並將所有法條的 JSON 物件放入一個列表中。請列出所有法條，不要省略。請將 JSON 內容輸出，並用 '```json' 和 '```' 包裹。",
+                'output_key': 'law_articles'
+            },
+        }
+
         for meta_type_key, config in prompt_configs.items():
             if not config['flag']:
                 print(f"Skipping generation for {meta_type_key}.")
@@ -389,54 +488,49 @@ class LawMetadataManager:
 
             tmp_output_file = os.path.join(tmp_output_dir, file_names[config['output_key']])
             output_file = os.path.join(output_dir, file_names[config['output_key']])
-            
-            # Check if the file already exists for non-article metadata
+            raw_output_file = os.path.join(tmp_output_dir, f"{law_name}_{meta_type_key}.txt") # Define raw_output_file here
+
+            # Check if the final JSON file already exists
             if meta_type_key != 'law_articles' and os.path.exists(output_file):
                 print(f"Skipping generation for {meta_type_key}: {output_file} already exists.")
                 continue
 
-            b_need = True
+            b_need = True # Assume we need to generate, unless processed from existing raw file
+
+            # --- Attempt to process from existing raw text file first ---
+            if os.path.exists(raw_output_file):
+                print(f"Attempting to process {meta_type_key} from existing raw file: {raw_output_file}")
+                try:
+                    with open(raw_output_file, 'r', encoding='utf-8') as f:
+                        existing_raw_text = f.read()
+                    if self._process_raw_text_to_json(existing_raw_text, tmp_output_file, output_file, meta_type_key):
+                        b_need = False # Successfully processed from existing raw file, no need for GenAI
+                except Exception as e:
+                    print(f"Error reading or processing existing raw file {raw_output_file}: {e}")
+                    # b_need remains True, will proceed to GenAI call
+
+            # --- If still needed, call GenAI and process its output ---
             run_cnt = 0
             while b_need and run_cnt < 3: # Retry up to 3 times
+                text_output = "" # Initialize text_output here
                 try:
                     run_cnt += 1
-                    # Pass law_content directly to _call_gemini_api
                     text_output = self._call_gemini_api(law_name, law_content, config['prompt'])
 
-                    # Save raw text output to a temporary file
-                    raw_output_file = os.path.join(tmp_output_dir, f"{law_name}_{meta_type_key}.txt")
+                    # Save raw text output to a temporary file (overwrite if exists)
                     with open(raw_output_file, 'w', encoding='utf-8') as f:
                         f.write(text_output)
                     print(f"Saved raw output to {raw_output_file}")
 
-                    # Extract JSON block using regex
-                    json_match = re.search(r'```json\n(.*?)```', text_output, re.DOTALL)
-                    if json_match:
-                        json_string = json_match.group(1)
+                    if self._process_raw_text_to_json(text_output, tmp_output_file, output_file, meta_type_key):
+                        b_need = False # Success, exit loop
                     else:
-                        # If no ```json block is found, assume the whole output is the JSON string
-                        # and try to clean it up (e.g., if the model forgot the ```json markers)
-                        json_string = text_output.strip()
-
-                    # 移除單行註解
-                    json_string = re.sub(r'//.*', '', json_string)
-                    # 移除多行註解
-                    json_string = re.sub(r'/\*.*?\*/', '', json_string, flags=re.DOTALL)
-
-                    json_data = json.loads(json_string)
-                    with open(tmp_output_file, 'w', encoding='utf-8') as f: # Write to temporary file
-                        json.dump(json_data, f, ensure_ascii=False, indent=2)
-                    shutil.move(tmp_output_file, output_file) # Move to final destination
-                    print(f"Generated {meta_type_key} to {output_file}")
-                    b_need = False # Success, exit loop
-                except json.JSONDecodeError as e:
-                    print(f"Error decoding JSON for {meta_type_key}: {e}")
-                    print(f"Problematic block content: {text_output[:500]}...")
+                        # If _process_raw_text_to_json failed, b_need remains True, will retry
+                        time.sleep(5) # Wait before retrying
+                except Exception as e: # Catch any other errors during GenAI call or initial processing
+                    print(f"Error during GenAI call or initial processing for {meta_type_key}: {e}")
                     time.sleep(5) # Wait before retrying
-                except Exception as e:
-                    print(f"Error generating content for {meta_type_key}: {e}")
-                    time.sleep(5) # Wait before retrying
-            
+
             if b_need: # If still not successful after retries
                 print(f"Failed to generate {meta_type_key} after {run_cnt} attempts. Skipping.")
 
