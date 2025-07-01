@@ -57,19 +57,18 @@ Feature: 階段一：載入法規原始資料與 LLM 生成資料
 @FEAT-002
 Feature: 階段二：載入結構化 JSON Meta Data
 
-  @SCEN-006
-  Scenario: 使用 LLM 從法規內文生成 Meta Data JSON 檔案
-    Given 一個法規的 Markdown 檔案 "data/new_law.md"
-    And 一份定義 Meta Data 結構的規格檔案 "法律語法形式化.md"
-    When 執行 `law_meta_loader.ipynb` 的 Meta Data 生成功能
-    Then 應在 "json/" 目錄下生成五個對應的 JSON 檔案:
-      | json/new_law_law_regulation.json    |
-      | json/new_law_law_articles.json      |
-      | json/new_law_legal_concepts.json    |
-      | json/new_law_hierarchy_relations.json |
-      | json/new_law_law_relations.json     |
-
   @SCEN-007
+  Scenario: 透過命令列工具載入多個法規的完整結構化 Meta Data
+    Given 一個包含多個法規名稱的清單檔案 "data/law_tometa_list.txt"
+    And "json/" 目錄下存在清單中每個法規對應的五種 Meta Data JSON 檔案
+    When 執行命令列工具 `python law_cli.py --load-meta-list data/law_tometa_list.txt`
+    Then 資料庫中清單中所有法規的 `laws` 表格 `law_metadata` 欄位應被填入
+    And 資料庫中清單中所有法規的 `articles` 表格 `article_metadata` 欄位應被填入
+    And 資料庫中清單中所有法規的 `legal_concepts` 資料表應包含對應的法律概念
+    And 資料庫中清單中所有法規的 `law_hierarchy_relationships` 資料表應包含對應的階層關係
+    And 資料庫中清單中所有法規的 `law_relationships` 資料表應包含對應的關聯性資料
+
+  @SCEN-008
   Scenario: 載入一部法規的完整結構化 Meta Data
     Given 資料庫中已存在法規 "民法" 的基本資料
     And "json/" 目錄下存在對應 "民法" 的五種 Meta Data JSON 檔案:
@@ -86,13 +85,13 @@ Feature: 階段二：載入結構化 JSON Meta Data
     And "law_hierarchy_relationships" 資料表應包含 "民法" 的階層關係
     And "law_relationships" 資料表應包含 "民法" 的關聯性資料
 
-  @SCEN-008
+  @SCEN-009
   Scenario: 產生法規關係的視覺化圖表
     Given 系統中已載入 "民法" 與 "民法總則施行法" 的 Meta Data
     When 執行 `law_meta_loader.ipynb` 的視覺化功能
     Then 應生成一個 Mermaid 圖表，顯示 "民法" 與 "民法總則施行法" 之間的關係
 
-  @SCEN-009
+  @SCEN-010
   Scenario: 從既有法規匯出法規，以供後續 meta data 生成
     Given 資料庫中已存在法規 "預算法" 的完整資料
     When 執行 `law_meta_loader.ipynb` 的法規匯出功能
@@ -103,7 +102,7 @@ Feature: 階段二：載入結構化 JSON Meta Data
 @FEAT-003
 Feature: 階段三：檢查資料庫內的各個table 資料基本符合預期
 
-  @SCEN-010
+  @SCEN-011
   Scenario: 檢查 laws 表格資料完整性
     Given 資料庫中已載入法規資料
     When 執行資料庫完整性檢查
@@ -111,7 +110,7 @@ Feature: 階段三：檢查資料庫內的各個table 資料基本符合預期
     And `laws` 表格中所有紀錄的 `pcode` 和 `xml_law_name` 欄位不應為空
     And `laws` 表格中所有紀錄的 `law_metadata` 欄位應為有效的 JSONB 格式且不為空
 
-  @SCEN-011
+  @SCEN-012
   Scenario: 檢查 articles 表格資料完整性
     Given 資料庫中已載入法規資料
     When 執行資料庫完整性檢查
@@ -119,7 +118,7 @@ Feature: 階段三：檢查資料庫內的各個table 資料基本符合預期
     And `articles` 表格中所有紀錄的 `law_id` 和 `xml_article_number` 欄位不應為空
     And `articles` 表格中所有紀錄的 `article_metadata` 欄位應為有效的 JSONB 格式且不為空
 
-  @SCEN-012
+  @SCEN-013
   Scenario: 檢查 legal_concepts 表格資料完整性
     Given 資料庫中已載入法律概念資料
     When 執行資料庫完整性檢查
@@ -127,7 +126,7 @@ Feature: 階段三：檢查資料庫內的各個table 資料基本符合預期
     And `legal_concepts` 表格中所有紀錄的 `law_id`、`code` 和 `name` 欄位不應為空
     And `legal_concepts` 表格中所有紀錄的 `data` 欄位應為有效的 JSONB 格式且不為空
 
-  @SCEN-013
+  @SCEN-014
   Scenario: 檢查 law_hierarchy_relationships 表格資料完整性
     Given 資料庫中已載入法規階層關係資料
     When 執行資料庫完整性檢查
@@ -135,7 +134,7 @@ Feature: 階段三：檢查資料庫內的各個table 資料基本符合預期
     And `law_hierarchy_relationships` 表格中所有紀錄的 `main_law_id`、`related_law_id` 和 `hierarchy_type` 欄位不應為空
     And `law_hierarchy_relationships` 表格中所有紀錄的 `data` 欄位應為有效的 JSONB 格式且不為空
 
-  @SCEN-014
+  @SCEN-015
   Scenario: 檢查 law_relationships 表格資料完整性
     Given 資料庫中已載入法規關聯性資料
     When 執行資料庫完整性檢查
@@ -143,14 +142,14 @@ Feature: 階段三：檢查資料庫內的各個table 資料基本符合預期
     And `law_relationships` 表格中所有紀錄的 `relationship_type` 欄位不應為空
     And `law_relationships` 表格中所有紀錄的 `data` 欄位應為有效的 JSONB 格式且不為空
 
-  @SCEN-015
+  @SCEN-016
   Scenario: 檢查特定法規的資料一致性
     Given 資料庫中已載入法規 "政府採購法" 的完整資料
     When 執行資料庫一致性檢查
     Then "政府採購法" 在 `laws` 表格中的 `id` 應與其在 `articles`、`legal_concepts`、`law_hierarchy_relationships` 和 `law_relationships` 表格中的 `law_id` 關聯正確
     And "政府採購法" 的 `llm_summary` 和 `llm_keywords` 欄位不應為空
 
-  @SCEN-016
+  @SCEN-017
   Scenario: 檢查摘要與關鍵字的缺漏情況並建立指標
     Given 資料庫中已載入法規資料
     When 執行摘要與關鍵字完整性檢查
@@ -160,7 +159,7 @@ Feature: 階段三：檢查資料庫內的各個table 資料基本符合預期
     And 應計算 `laws` 表格中 `llm_keywords` 欄位有值的法規比例
     And 應將這些指標記錄下來
 
-  @SCEN-017
+  @SCEN-018
   Scenario: 檢查 Meta Data 灌入資料庫的完整性並建立指標
     Given 資料庫中已載入結構化 Meta Data
     When 執行 Meta Data 完整性檢查
@@ -182,7 +181,7 @@ Feature: 階段三：檢查資料庫內的各個table 資料基本符合預期
 Feature: 階段四：命令列工具，能夠利用下達不同參數，做到維護資料庫內資料的功能
   所有命令列參數都應支援長短兩種形式，例如 `--import-xml-list` 可使用 `-x`。
 
-  @SCEN-018
+  @SCEN-019
   Scenario: 透過命令列工具匯入多個法規的 XML 資料，法規清單從檔案來
     Given 一個包含多個法規 XML 檔案路徑的清單檔案 "data/xml_sample.xml"
     And 資料庫中不存在清單中的法規
@@ -190,45 +189,56 @@ Feature: 階段四：命令列工具，能夠利用下達不同參數，做到�
     Then "laws" 資料表中應包含從 XML 解析出的清單中所有法規紀錄
     And "articles" 資料表中應包含所有對應的法條紀錄
 
-  @SCEN-019
+  @SCEN-020
   Scenario: 透過命令列工具更新多個法規的 LLM 摘要，法規清單從檔案來
     Given 資料庫中已存在多個法規
     And 一個包含多法規名稱與摘要內容的檔案 "data/summary_sample.md"
     When 執行命令列工具 `python law_cli.py --update-summary data/summary_sample.md` 或 `python law_cli.py -s data/law_summary.txt`
     Then "laws" 資料表中清單中所有法規紀錄的 "llm_summary" 欄位應被更新
 
-  @SCEN-020
+  @SCEN-021
   Scenario: 透過命令列工具更新多個法規的 LLM 關鍵字，法規清單從檔案來
     Given 資料庫中已存在多個法規
     And 一個包含法規名稱與關鍵字檔案路徑對應的清單檔案 "data/keywords_sample.csv"
     When 執行命令列工具 `python law_cli.py --update-keywords data/keywords_sample.csv` 或 `python law_cli.py -k data/law_keyword_list.txt`
     Then "laws" 資料表中清單中所有法規紀錄的 "llm_keywords" 欄位應被更新
 
-  @SCEN-021
+  @SCEN-022
   Scenario: 透過命令列工具從多個法規的 Markdown 檔案生成 Meta Data，法規清單從檔案來
-    Given 一個包含法規名稱與 Markdown 檔案路徑對應的清單檔案 "data/law_markdown_list.txt"
+    Given 一個包含法規名稱與 Markdown 檔案路徑對應的清單檔案 "data/law_tometa_list.txt"
     And 一份定義 Meta Data 結構的規格檔案 "法律語法形式化.md"
-    When 執行命令列工具 `python law_cli.py --generate-meta-list data/law_markdown_list.txt` 或 `python law_cli.py -g data/law_markdown_list.txt`
+    When 執行命令列工具 `python law_cli.py --generate-meta-list data/law_tometa_list.txt` 或 `python law_cli.py -g data/law_markdown_list.txt`
     Then 應在 "json/" 目錄下生成清單中每個法規對應的五種 Meta Data JSON 檔案
 
-  @SCEN-022
+  @SCEN-023
   Scenario: 透過命令列工具刪除多個法規的所有資料，法規清單從檔案來
     Given 資料庫中已存在多個法規
     And 一個包含要刪除法規名稱的清單檔案 "data/law_delete_list.txt"
     When 執行命令列工具 `python law_cli.py --delete-law-list data/law_delete_list.txt` 或 `python law_cli.py -d data/law_delete_list.txt`
     Then 資料庫中所有與清單中法規相關的紀錄應被清除 (laws, articles, legal_concepts, law_hierarchy_relationships, law_relationships)
 
-  @SCEN-023
+  @SCEN-024
   Scenario: 透過命令列工具匯出多個法規的完整資料為 Markdown 檔案，法規清單從檔案來
     Given 資料庫中已存在多個法規的完整資料
-    And 一個包含要匯出法規名稱的清單檔案 "data/law_export_list.txt"
-    When 執行命令列工具 `python law_cli.py --export-law-list data/law_export_list.txt --output-dir output_dir/` 或 `python law_cli.py -e data/law_export_list.txt output_dir/`
+    And 一個包含要匯出法規名稱的清單檔案 "data/law_tometa_list.txt"
+    When 執行命令列工具 `python law_cli.py --export-law-list data/law_tometa_list.txt --output-dir output_dir` 或 `python law_cli.py -e data/law_export_list.txt output_dir/`
     Then "output_dir/" 目錄下應生成清單中每個法規對應的 Markdown 檔案，其中包含該法規的完整條文內容及相關 Meta Data (若有)
 
-  @SCEN-024
+  @SCEN-025
   Scenario: 透過命令列工具執行資料庫完整性檢查並輸出報告
     Given 資料庫中已載入法規資料
     When 執行命令列工具 `python law_cli.py --check-integrity` 或 `python law_cli.py -c`
     Then 應輸出資料庫完整性檢查報告，包含各表格的資料量、空值比例等指標
     And 報告應儲存至預設的報告檔案路徑
+
+  @SCEN-026
+  Scenario: 透過命令列工具將已產生的 Meta Data 灌入資料庫，法規清單從檔案來
+    Given 一個包含多個法規名稱的清單檔案 "data/law_tometa_list.txt"
+    And "json/" 目錄下存在清單中每個法規對應的五種 Meta Data JSON 檔案
+    When 執行命令列工具 `python law_cli.py --import-meta-list data/law_tometa_list.txt` 或 `python law_cli.py -m data/law_tometa_list.txt`
+    Then 資料庫中對應法規的 `laws` 表格 `law_metadata` 欄位應被填入
+    And 資料庫中對應法規的 `articles` 表格 `article_metadata` 欄位應被填入
+    And 資料庫中對應法規的 `legal_concepts` 資料表應包含對應的法律概念
+    And 資料庫中對應法規的 `law_hierarchy_relationships` 資料表應包含對應的階層關係
+    And 資料庫中對應法規的 `law_relationships` 資料表應包含對應的關聯性資料
 
