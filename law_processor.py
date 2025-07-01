@@ -135,7 +135,7 @@ class LawProcessor:
             )
         print(f"Processed articles for law_id: {law_id}")
 
-    def update_summary_list(self, summary_file_path):
+    def update_summary(self, summary_file_path):
         conn = None
         try:
             conn = self._get_db_connection()
@@ -178,19 +178,24 @@ class LawProcessor:
                 cur.close()
                 conn.close()
 
-    def update_keyword_list(self, keyword_file_list_path):
-        with open(keyword_file_list_path, 'r', encoding='utf-8') as f:
-            keyword_entries = [line.strip().split(':', 1) for line in f if line.strip()]
+    def update_keywords(self, keyword_csv_path):
+        import pandas as pd
         
         conn = None
         try:
             conn = self._get_db_connection()
             cur = conn.cursor()
-            for law_name, keyword_path in keyword_entries:
-                print(f"Updating keywords for law: {law_name} from {keyword_path}")
-                with open(keyword_path, 'r', encoding='utf-8') as kf:
-                    llm_keywords = kf.read().strip() # Assuming keywords are comma-separated or similar
+
+            df = pd.read_csv(keyword_csv_path)
+            
+            # Group by 'filename' and concatenate 'keywords' with '|'
+            grouped_keywords = df.groupby('filename')['keywords'].apply(lambda x: '|'.join(x.astype(str))).reset_index()
+
+            for index, row in grouped_keywords.iterrows():
+                law_name = row['filename']
+                llm_keywords = row['keywords']
                 
+                print(f"Updating keywords for law: {law_name}")
                 cur.execute(
                     """
                     UPDATE laws SET llm_keywords = %s WHERE xml_law_name = %s

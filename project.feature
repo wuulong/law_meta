@@ -200,8 +200,8 @@ Feature: 階段四：命令列工具，能夠利用下達不同參數，做到�
   @SCEN-020
   Scenario: 透過命令列工具更新多個法規的 LLM 關鍵字，法規清單從檔案來
     Given 資料庫中已存在多個法規
-    And 一個包含法規名稱與關鍵字檔案路徑對應的清單檔案 "data/law_keyword_list.txt"
-    When 執行命令列工具 `python law_cli.py --update-keyword-list data/law_keyword_list.txt` 或 `python law_cli.py -k data/law_keyword_list.txt`
+    And 一個包含法規名稱與關鍵字檔案路徑對應的清單檔案 "data/law_keywords.csv"
+    When 執行命令列工具 `python law_cli.py --update-keywords data/law_keywords.csv` 或 `python law_cli.py -k data/law_keyword_list.txt`
     Then "laws" 資料表中清單中所有法規紀錄的 "llm_keywords" 欄位應被更新
 
   @SCEN-021
