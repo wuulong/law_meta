@@ -139,11 +139,18 @@ def check_laws_table_integrity():
         # 檢查 law_metadata 欄位應為有效的 JSONB 格式且不為空
         db_cursor.execute("SELECT COUNT(*) FROM laws WHERE law_metadata IS NULL OR law_metadata::text = 'null' OR law_metadata::text = '{}';")
         empty_metadata_count = db_cursor.fetchone()[0]
+
+        # 計算 laws table 中，有 metadata 的筆數
+        db_cursor.execute("SELECT COUNT(*) FROM laws WHERE law_metadata IS NOT NULL AND law_metadata::text != 'null' AND law_metadata::text != '{}';")
+        filled_metadata_count = db_cursor.fetchone()[0]
+
         if empty_metadata_count == 0:
             print("PASS: laws 表格中所有紀錄的 law_metadata 欄位皆為有效的 JSONB 格式且不為空。")
         else:
-            print(f"FAIL: laws 表格中有 {empty_metadata_count} 筆紀錄的 law_metadata 欄位為空或無效。")
+            print(f"FAIL: laws 表格中有 {empty_metadata_count} 筆紀錄的 law_metadata 欄位為空或無效。 (其中 {filled_metadata_count} 筆有值)")
             return False
+
+        print(f"laws 表格中 law_metadata 欄位有值的法規數量: {filled_metadata_count} 筆。")
         return True
     except Exception as e:
         print(f"ERROR: 檢查 laws 表格資料完整性時發生錯誤: {e}")
@@ -453,7 +460,10 @@ def check_metadata_completeness():
         # 檢查 laws 表格中 law_metadata 欄位為空的法規數量
         db_cursor.execute("SELECT COUNT(*) FROM laws WHERE law_metadata IS NULL OR law_metadata::text = 'null' OR law_metadata::text = '{}';")
         empty_law_metadata_count = db_cursor.fetchone()[0]
-        print(f"laws 表格中 law_metadata 欄位為空的法規數量: {empty_law_metadata_count}")
+        # 計算 laws 表格中 law_metadata 欄位有值的法規數量
+        db_cursor.execute("SELECT COUNT(*) FROM laws WHERE law_metadata IS NOT NULL AND law_metadata::text != 'null' AND law_metadata::text != '{}';")
+        filled_law_metadata_count = db_cursor.fetchone()[0]
+        print(f"laws 表格中 law_metadata 欄位為空的法規數量: {empty_law_metadata_count}，非空的法規數量：{filled_law_metadata_count}")
 
         # 檢查 articles 表格中 article_metadata 欄位為空的法條數量
         db_cursor.execute("SELECT COUNT(*) FROM articles WHERE article_metadata IS NULL OR article_metadata::text = 'null' OR article_metadata::text = '{}';")
