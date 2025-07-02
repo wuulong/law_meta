@@ -9,9 +9,11 @@ import sys
 from unittest.mock import patch
 import pytest
 from pytest_bdd import scenarios, given, when, then, parsers
+import dotenv
 
 # Add project root to the Python path for module imports
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+dotenv.load_dotenv()
 
 # --- Mocks and Fixtures ---
 

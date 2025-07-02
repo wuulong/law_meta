@@ -9,9 +9,11 @@ import subprocess
 import psycopg2
 import pytest
 from pytest_bdd import scenarios, given, when, then, parsers
+import dotenv
 
 # Add project root to the Python path for module imports
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+dotenv.load_dotenv()
 
 # --- Load scenarios from the integration feature file ---
 scenarios('../features/integration_tests.feature')
@@ -89,6 +91,19 @@ def check_law_record_in_db(safe_db_connection, table_name, law_name):
         result = cursor.fetchone()
         assert result is not None, f"Law '{law_name}' not found in table '{table_name}'"
         assert result[0] == law_name
+        print(f"\n--- 驗證法規匯入成功 ---")
+        print(f"已找到法規: {result[0]}")
+        # 額外查詢並顯示「中華民國憲法增修條文」的資訊
+        cursor.execute("SELECT pcode, xml_law_name, xml_law_nature, xml_latest_change_date FROM laws WHERE xml_law_name = '中華民國憲法增修條文';")
+        constitution_result = cursor.fetchone()
+        if constitution_result:
+            print(f"\n--- 中華民國憲法增修條文資訊 ---")
+            print(f"PCode: {constitution_result[0]}")
+            print(f"法規名稱: {constitution_result[1]}")
+            print(f"法規性質: {constitution_result[2]}")
+            print(f"最新異動日期: {constitution_result[3]}")
+        else:
+            print(f"\n--- 未找到中華民國憲法增修條文 ---")
     conn.close()
 
 @then(parsers.parse('資料庫的 "{table_name}" 資料表中應包含 "{law_name}" 的 {count:d} 筆法條紀錄'))
