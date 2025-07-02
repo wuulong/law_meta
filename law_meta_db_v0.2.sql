@@ -201,3 +201,215 @@ COMMENT ON COLUMN article_legal_concept.legal_concept_id IS '指向法律概念�
 CREATE INDEX idx_alc_article_id ON article_legal_concept (article_id);
 CREATE INDEX idx_alc_legal_concept_id ON article_legal_concept (legal_concept_id);
 
+-- 建議建立的 VIEW (視圖)
+
+-- 1. v_laws_overview (法規概覽)
+CREATE VIEW v_laws_overview AS
+SELECT
+    id,
+    pcode,
+    xml_law_name,
+    xml_law_nature,
+    xml_law_category,
+    xml_latest_change_date,
+    llm_summary,
+    llm_keywords
+FROM laws;
+
+-- 2. v_articles_with_law_info (法條與所屬法規資訊)
+CREATE VIEW v_articles_with_law_info AS
+SELECT
+    a.id AS article_id,
+    l.id AS law_id,
+    l.xml_law_name,
+    l.pcode,
+    a.xml_article_number,
+    a.xml_article_content,
+    a.xml_chapter_section
+FROM articles a
+JOIN laws l ON a.law_id = l.id;
+
+-- 3. v_law_metadata_extracted (法規元數據提取)
+CREATE VIEW v_law_metadata_extracted AS
+SELECT
+    id,
+    pcode,
+    xml_law_name,
+    law_metadata->>'主管機關' AS meta_competent_authority,
+    law_metadata->'法規詳細類別'->>'法律領域' AS meta_law_domain,
+    law_metadata->'法規時間軸'->>'公布日期' AS meta_publish_date,
+    law_metadata->>'簡述' AS meta_summary_from_json
+FROM laws;
+
+-- 4. v_article_legal_concepts_detail (法條與法律概念詳情)
+CREATE VIEW v_article_legal_concepts_detail AS
+SELECT
+    l.xml_law_name,
+    a.xml_article_number,
+    a.xml_article_content,
+    lc.name AS concept_name,
+    lc.data->>'定義' AS concept_definition
+FROM articles a
+JOIN article_legal_concept alc ON a.id = alc.article_id
+JOIN legal_concepts lc ON alc.legal_concept_id = lc.id
+JOIN laws l ON a.law_id = l.id;
+
+-- 5. v_law_relationships_readable (可讀的法規關聯)
+CREATE VIEW v_law_relationships_readable AS
+SELECT
+    lr.relationship_type,
+    ml.xml_law_name AS main_law_name,
+    ma.xml_article_number AS main_article_number,
+    rl.xml_law_name AS related_law_name,
+    ra.xml_article_number AS related_article_number,
+    lr.data->>'關聯說明' AS relationship_description
+FROM law_relationships lr
+LEFT JOIN laws ml ON lr.main_law_id = ml.id
+LEFT JOIN articles ma ON lr.main_article_id = ma.id
+LEFT JOIN laws rl ON lr.related_law_id = rl.id
+LEFT JOIN articles ra ON lr.related_article_id = ra.id;
+
+-- 6. v_law_hierarchy_relationships_readable (可讀的法規階層關係)
+CREATE VIEW v_law_hierarchy_relationships_readable AS
+SELECT
+    lhr.hierarchy_type,
+    ml.xml_law_name AS main_law_name,
+    rl.xml_law_name AS related_law_name,
+    lhr.data->>'關聯說明' AS hierarchy_description
+FROM law_hierarchy_relationships lhr
+JOIN laws ml ON lhr.main_law_id = ml.id
+JOIN laws rl ON lhr.related_law_id = rl.id;
+
+-- 7. v_legal_concepts_overview (法律概念概覽)
+CREATE VIEW v_legal_concepts_overview AS
+SELECT
+    id,
+    name AS concept_name,
+    data->>'定義' AS definition,
+    data->>'概念類別' AS concept_category,
+    data->>'同義詞' AS synonyms
+FROM legal_concepts;
+
+
+-- 建議建立的 STORED PROCEDURE / FUNCTION (儲存程序/函數)
+
+-- 1. f_search_laws_by_keyword(p_keyword TEXT) (依關鍵字搜尋法規)
+CREATE OR REPLACE FUNCTION f_search_laws_by_keyword(p_keyword TEXT)
+RETURNS SETOF laws AS $$
+BEGIN
+    RETURN QUERY
+    SELECT *
+    FROM laws
+    WHERE
+        xml_law_name ILIKE '%' || p_keyword || '%' OR
+        llm_summary ILIKE '%' || p_keyword || '%' OR
+        llm_keywords ILIKE '%' || p_keyword || '%';
+END;
+$$ LANGUAGE plpgsql;
+
+-- 2. f_get_law_full_content(p_pcode VARCHAR) (獲取法規完整內容)
+CREATE OR REPLACE FUNCTION f_get_law_full_content(p_pcode VARCHAR)
+RETURNS JSONB AS $$
+DECLARE
+    law_data JSONB;
+    articles_data JSONB;
+BEGIN
+    SELECT to_jsonb(l.*) INTO law_data
+    FROM laws l
+    WHERE l.pcode = p_pcode;
+
+    IF law_data IS NULL THEN
+        RETURN NULL;
+    END IF;
+
+    SELECT jsonb_agg(to_jsonb(a.*) ORDER BY a.xml_article_number) INTO articles_data
+    FROM articles a
+    WHERE a.law_id = (SELECT id FROM laws WHERE pcode = p_pcode);
+
+    RETURN jsonb_build_object(
+        'law', law_data,
+        'articles', COALESCE(articles_data, '[]'::jsonb)
+    );
+END;
+$$ LANGUAGE plpgsql;
+
+-- 3. f_get_article_details_with_concepts(p_law_pcode VARCHAR, p_article_number VARCHAR) (獲取法條詳情及相關概念)
+CREATE OR REPLACE FUNCTION f_get_article_details_with_concepts(
+    p_law_pcode VARCHAR,
+    p_article_number VARCHAR
+)
+RETURNS JSONB AS $$
+DECLARE
+    article_info JSONB;
+    concepts_info JSONB;
+BEGIN
+    SELECT to_jsonb(a.*) || jsonb_build_object('law_name', l.xml_law_name) INTO article_info
+    FROM articles a
+    JOIN laws l ON a.law_id = l.id
+    WHERE l.pcode = p_law_pcode AND a.xml_article_number = p_article_number;
+
+    IF article_info IS NULL THEN
+        RETURN NULL;
+    END IF;
+
+    SELECT jsonb_agg(to_jsonb(lc.*) || jsonb_build_object('definition', lc.data->>'定義')) INTO
+    concepts_info
+    FROM legal_concepts lc
+    JOIN article_legal_concept alc ON lc.id = alc.legal_concept_id
+    WHERE alc.article_id = (SELECT id FROM articles WHERE law_id = (SELECT id FROM laws WHERE
+    pcode = p_law_pcode) AND xml_article_number = p_article_number);
+
+    RETURN jsonb_build_object(
+        'article', article_info,
+        'legal_concepts', COALESCE(concepts_info, '[]'::jsonb)
+    );
+END;
+$$ LANGUAGE plpgsql;
+
+-- 4. f_search_laws_by_category(p_category TEXT) (依類別搜尋法規)
+CREATE OR REPLACE FUNCTION f_search_laws_by_category(p_category TEXT)
+RETURNS SETOF laws AS $$
+BEGIN
+    RETURN QUERY
+    SELECT *
+    FROM laws
+    WHERE xml_law_category ILIKE '%' || p_category || '%';
+END;
+$$ LANGUAGE plpgsql;
+
+-- 5. f_search_articles_by_content(p_keyword TEXT) (依內容搜尋法條)
+CREATE OR REPLACE FUNCTION f_search_articles_by_content(p_keyword TEXT)
+RETURNS TABLE(
+    law_name VARCHAR,
+    pcode VARCHAR,
+    article_number VARCHAR,
+    article_content TEXT,
+    chapter_section VARCHAR
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT
+        l.xml_law_name,
+        l.pcode,
+        a.xml_article_number,
+        a.xml_article_content,
+        a.xml_chapter_section
+    FROM articles a
+    JOIN laws l ON a.law_id = l.id
+    WHERE a.xml_article_content ILIKE '%' || p_keyword || '%';
+END;
+$$ LANGUAGE plpgsql;
+
+-- 6. f_get_legal_concepts_for_law(p_pcode VARCHAR) (獲取某法規的所有法律概念)
+CREATE OR REPLACE FUNCTION f_get_legal_concepts_for_law(p_pcode VARCHAR)
+RETURNS SETOF legal_concepts AS $$
+BEGIN
+    RETURN QUERY
+    SELECT DISTINCT lc.*
+    FROM legal_concepts lc
+    JOIN article_legal_concept alc ON lc.id = alc.legal_concept_id
+    JOIN articles a ON alc.article_id = a.id
+    JOIN laws l ON a.law_id = l.id
+    WHERE l.pcode = p_pcode;
+END;
+$$ LANGUAGE plpgsql;

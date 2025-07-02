@@ -208,6 +208,128 @@ COMMENT ON COLUMN article_legal_concept.legal_concept_id IS '指向法律概念�
 CREATE INDEX idx_alc_article_id ON article_legal_concept (article_id);
 CREATE INDEX idx_alc_legal_concept_id ON article_legal_concept (legal_concept_id);
 
+-- 建議建立的 STORED PROCEDURE / FUNCTION (儲存程序/函數)
+
+-- 1. f_search_laws_by_keyword(p_keyword TEXT) (依關鍵字搜尋法規)
+CREATE OR REPLACE FUNCTION f_search_laws_by_keyword(p_keyword TEXT)
+RETURNS SETOF laws AS $$
+BEGIN
+    RETURN QUERY
+    SELECT *
+    FROM laws
+    WHERE
+        xml_law_name ILIKE '%' || p_keyword || '%' OR
+        llm_summary ILIKE '%' || p_keyword || '%' OR
+        llm_keywords ILIKE '%' || p_keyword || '%';
+END;
+$$ LANGUAGE plpgsql;
+
+-- 2. f_get_law_full_content(p_pcode VARCHAR) (獲取法規完整內容)
+CREATE OR REPLACE FUNCTION f_get_law_full_content(p_pcode VARCHAR)
+RETURNS JSONB AS $$
+DECLARE
+    law_data JSONB;
+    articles_data JSONB;
+BEGIN
+    SELECT to_jsonb(l.*) INTO law_data
+    FROM laws l
+    WHERE l.pcode = p_pcode;
+
+    IF law_data IS NULL THEN
+        RETURN NULL;
+    END IF;
+
+    SELECT jsonb_agg(to_jsonb(a.*) ORDER BY a.xml_article_number) INTO articles_data
+    FROM articles a
+    WHERE a.law_id = (SELECT id FROM laws WHERE pcode = p_pcode);
+
+    RETURN jsonb_build_object(
+        'law', law_data,
+        'articles', COALESCE(articles_data, '[]'::jsonb)
+    );
+END;
+$$ LANGUAGE plpgsql;
+
+-- 3. f_get_article_details_with_concepts(p_law_pcode VARCHAR, p_article_number VARCHAR) (獲取法條詳情及相關概念)
+CREATE OR REPLACE FUNCTION f_get_article_details_with_concepts(
+    p_law_pcode VARCHAR,
+    p_article_number VARCHAR
+)
+RETURNS JSONB AS $$
+DECLARE
+    article_info JSONB;
+    concepts_info JSONB;
+BEGIN
+    SELECT to_jsonb(a.*) || jsonb_build_object('law_name', l.xml_law_name) INTO article_info
+    FROM articles a
+    JOIN laws l ON a.law_id = l.id
+    WHERE l.pcode = p_law_pcode AND a.xml_article_number = p_article_number;
+
+    IF article_info IS NULL THEN
+        RETURN NULL;
+    END IF;
+
+    SELECT jsonb_agg(to_jsonb(lc.*) || jsonb_build_object('definition', lc.data->>'定義')) INTO
+    concepts_info
+    FROM legal_concepts lc
+    JOIN article_legal_concept alc ON lc.id = alc.legal_concept_id
+    WHERE alc.article_id = (SELECT id FROM articles WHERE law_id = (SELECT id FROM laws WHERE
+    pcode = p_law_pcode) AND xml_article_number = p_article_number);
+
+    RETURN jsonb_build_object(
+        'article', article_info,
+        'legal_concepts', COALESCE(concepts_info, '[]'::jsonb)
+    );
+END;
+$$ LANGUAGE plpgsql;
+
+-- 4. f_search_laws_by_category(p_category TEXT) (依類別搜尋法規)
+CREATE OR REPLACE FUNCTION f_search_laws_by_category(p_category TEXT)
+RETURNS SETOF laws AS $$
+BEGIN
+    RETURN QUERY
+    SELECT *
+    FROM laws
+    WHERE xml_law_category ILIKE '%' || p_category || '%';
+END;
+$$ LANGUAGE plpgsql;
+
+-- 5. f_search_articles_by_content(p_keyword TEXT) (依內容搜尋法條)
+CREATE OR REPLACE FUNCTION f_search_articles_by_content(p_keyword TEXT)
+RETURNS TABLE(
+    law_name VARCHAR,
+    pcode VARCHAR,
+    article_number VARCHAR,
+    article_content TEXT,
+    chapter_section VARCHAR
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT
+        l.xml_law_name,
+        l.pcode,
+        a.xml_article_number,
+        a.xml_article_content,
+        a.xml_chapter_section
+    FROM articles a
+    JOIN laws l ON a.law_id = l.id
+    WHERE a.xml_article_content ILIKE '%' || p_keyword || '%';
+END;
+$$ LANGUAGE plpgsql;
+
+-- 6. f_get_legal_concepts_for_law(p_pcode VARCHAR) (獲取某法規的所有法律概念)
+CREATE OR REPLACE FUNCTION f_get_legal_concepts_for_law(p_pcode VARCHAR)
+RETURNS SETOF legal_concepts AS $$
+BEGIN
+    RETURN QUERY
+    SELECT DISTINCT lc.*
+    FROM legal_concepts lc
+    JOIN article_legal_concept alc ON lc.id = alc.legal_concept_id
+    JOIN articles a ON alc.article_id = a.id
+    JOIN laws l ON a.law_id = l.id
+    WHERE l.pcode = p_pcode;
+END;
+$$ LANGUAGE plpgsql;
 
 # --- End of database schema ---
 
