@@ -60,7 +60,11 @@ def main():
                 law_list_content = [line.strip() for line in f if line.strip()]
         law_processor.import_xml(args.import_xml, law_list=law_list_content)
     elif args.update_summary:
-        law_processor.update_summary(args.update_summary)
+        law_list_content = None
+        if args.law_list:
+            with open(args.law_list, 'r', encoding='utf-8') as f:
+                law_list_content = [line.strip() for line in f if line.strip()]
+        law_processor.update_summary(args.update_summary, law_list=law_list_content)
     elif args.update_keywords:
         law_processor.update_keywords(args.update_keywords)
     elif args.generate_meta_list:

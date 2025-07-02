@@ -144,7 +144,7 @@ class LawProcessor:
             )
         print(f"Processed articles for law_id: {law_id}")
 
-    def update_summary(self, summary_file_path):
+    def update_summary(self, summary_file_path, law_list=None):
         conn = None
         try:
             conn = self._get_db_connection()
@@ -165,6 +165,10 @@ class LawProcessor:
                 
                 if not law_name or not llm_summary:
                     print(f"Warning: Could not parse law name or summary from part starting with: {parts[i][:50]}...")
+                    continue
+
+                if law_list and law_name not in law_list:
+                    print(f"Skipping summary update for law '{law_name}' as it is not in the provided law list.")
                     continue
 
                 print(f"Updating summary for law: {law_name}")

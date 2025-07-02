@@ -100,7 +100,7 @@ def summary_file(tmp_path, file_path):
 def check_summary_updated(mock_law_processor_class, table, column):
     mock_instance = mock_law_processor_class.return_value
     if "summary" in column:
-        mock_instance.update_summary.assert_called_once_with('data/summary_sample.md')
+        mock_instance.update_summary.assert_called_once_with('data/summary_sample.md', law_list=None)
 
 # @SCEN-021
 @given(parsers.parse('一個包含法規名稱與關鍵字檔案路徑對應的清單檔案 "{file_path}"'))

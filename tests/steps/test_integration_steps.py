@@ -66,7 +66,19 @@ def clean_test_database(safe_db_connection):
     # The fixture ensures the specific test data is not present
     pass
 
-@when('執行命令列工具匯入該清單檔案')
+@given('資料庫中已存在多個法規')
+def laws_exist_in_db(safe_db_connection):
+    conn = psycopg2.connect(**safe_db_connection)
+    cur = conn.cursor()
+    # Insert some dummy laws for testing update scenarios
+    cur.execute("INSERT INTO laws (pcode, xml_law_name, xml_law_nature, xml_latest_change_date) VALUES (%s, %s, %s, %s) ON CONFLICT (pcode) DO NOTHING", ('Y0000001', '預算法', '法律', '2023-01-01'))
+    cur.execute("INSERT INTO laws (pcode, xml_law_name, xml_law_nature, xml_latest_change_date) VALUES (%s, %s, %s, %s) ON CONFLICT (pcode) DO NOTHING", ('P0000001', '政府採購法', '法律', '2023-02-01'))
+    cur.execute("INSERT INTO laws (pcode, xml_law_name, xml_law_nature, xml_latest_change_date) VALUES (%s, %s, %s, %s) ON CONFLICT (pcode) DO NOTHING", ('C0000001', '中醫藥發展法', '法律', '2023-03-01'))
+    conn.commit()
+    cur.close()
+    conn.close()
+
+@when(parsers.parse('執行命令列工具匯入該清單檔案'))
 def run_cli_for_integration(xml_file_for_integration, safe_db_connection):
     env = os.environ.copy()
     env["DB_HOST"] = safe_db_connection["host"]
@@ -80,6 +92,23 @@ def run_cli_for_integration(xml_file_for_integration, safe_db_connection):
         "law_cli.py",
         "--import-xml", # Use --import-xml for the single XML file
         xml_file_for_integration # This is now data/xml_sample.xml
+    ]
+    subprocess.run(command, check=True, env=env)
+
+@when(parsers.parse('執行命令列工具 `python law_cli.py --update-summary {summary_file_path}`'))
+def run_cli_update_summary(summary_file_path, safe_db_connection):
+    env = os.environ.copy()
+    env["DB_HOST"] = safe_db_connection["host"]
+    env["DB_PORT"] = safe_db_connection["port"]
+    env["DB_USER"] = safe_db_connection["user"]
+    env["DB_PASSWORD"] = safe_db_connection["password"]
+    env["DB_NAME"] = safe_db_connection["dbname"]
+
+    command = [
+        sys.executable,
+        "law_cli.py",
+        "--update-summary",
+        summary_file_path
     ]
     subprocess.run(command, check=True, env=env)
 
@@ -104,6 +133,32 @@ def check_law_record_in_db(safe_db_connection, table_name, law_name):
             print(f"最新異動日期: {constitution_result[3]}")
         else:
             print(f"\n--- 未找到中華民國憲法增修條文 ---")
+    conn.close()
+
+@then(parsers.parse('"{table_name}" 資料表中清單中所有法規紀錄的 "{column_name}" 欄位應被更新'))
+def check_summary_updated(safe_db_connection, table_name, column_name):
+    conn = psycopg2.connect(**safe_db_connection)
+    with conn.cursor() as cursor:
+        # Check for '預算法'
+        cursor.execute(f"SELECT {column_name} FROM {table_name} WHERE xml_law_name = %s", ('預算法',))
+        result = cursor.fetchone()
+        assert result is not None, "預算法 not found"
+        assert result[0] is not None and result[0] != '', "預算法 summary not updated"
+        print(f"預算法 {column_name} 已更新: {result[0][:50]}...")
+
+        # Check for '政府採購法'
+        cursor.execute(f"SELECT {column_name} FROM {table_name} WHERE xml_law_name = %s", ('政府採購法',))
+        result = cursor.fetchone()
+        assert result is not None, "政府採購法 not found"
+        assert result[0] is not None and result[0] != '', "政府採購法 summary not updated"
+        print(f"政府採購法 {column_name} 已更新: {result[0][:50]}...")
+
+        # Check for '中醫藥發展法'
+        cursor.execute(f"SELECT {column_name} FROM {table_name} WHERE xml_law_name = %s", ('中醫藥發展法',))
+        result = cursor.fetchone()
+        assert result is not None, "中醫藥發展法 not found"
+        assert result[0] is not None and result[0] != '', "中醫藥發展法 summary not updated"
+        print(f"中醫藥發展法 {column_name} 已更新: {result[0][:50]}...")
     conn.close()
 
 @then(parsers.parse('資料庫的 "{table_name}" 資料表中應包含 "{law_name}" 的 {count:d} 筆法條紀錄'))
