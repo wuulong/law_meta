@@ -14,6 +14,8 @@ def main():
     group_import_update = parser.add_argument_group('Import/Update Operations')
     group_import_update.add_argument('-x', '--import-xml', type=str,
                                      help='Path to a single XML file containing law data to import.')
+    group_import_update.add_argument('-l', '--law-list', type=str,
+                                     help='Path to a file containing a list of XML file paths to import.')
     group_import_update.add_argument('-s', '--update-summary', type=str,
                                      help='Path to a file containing multiple law summaries to update.')
     group_import_update.add_argument('-k', '--update-keywords', type=str,
@@ -67,8 +69,6 @@ def main():
         law_processor.export_law_list(args.export_law_list, args.output_dir)
     elif args.check_integrity:
         law_processor.check_integrity()
-    else:
-        parser.print_help()
 
 load_dotenv()
 

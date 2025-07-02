@@ -29,7 +29,7 @@ def mock_law_metadata_manager_class():
 
 # --- Load scenarios from the implemented feature file ---
 
-scenarios('../features/phase4_cli_tools.feature')
+scenarios('phase4_cli_tools.feature')
 
 # --- Helper function to run CLI ---
 

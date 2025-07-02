@@ -13,101 +13,106 @@ class LawProcessor:
 
     def import_xml(self, xml_file_path):
         print(f"Processing XML file: {xml_file_path}")
-        self._process_single_xml(xml_file_path)
-
-    def _process_single_xml(self, xml_file_path):
         tree = ET.parse(xml_file_path)
         root = tree.getroot()
 
-        for law_elem in root.findall('法規'):
-            pcode = law_elem.find('法規網址').text.split('pcode=')[1]
-            xml_law_name = law_elem.find('法規名稱').text
-            xml_law_nature = law_elem.find('法規性質').text
-            xml_law_url = law_elem.find('法規網址').text
-            xml_law_category = law_elem.find('法規類別').text
-            xml_latest_change_date_str = law_elem.find('最新異動日期').text
-            xml_latest_change_date = datetime.strptime(xml_latest_change_date_str, '%Y%m%d').date() if xml_latest_change_date_str else None
-            xml_effective_date = law_elem.find('生效日期').text
-            xml_effective_content = law_elem.find('生效內容').text
-            xml_abolition_mark = law_elem.find('廢止註記').text
-            xml_is_english_translated = True if law_elem.find('是否英譯註記').text == 'Y' else False
-            xml_english_law_name = law_elem.find('英文法規名稱').text
-            xml_attachment = law_elem.find('附件').text
-            xml_history_content = law_elem.find('沿革內容').text
-            xml_preamble = law_elem.find('前言').text
+        if root.tag == 'LAWS':
+            for law_elem in root.findall('法規'):
+                self._process_law_element(law_elem)
+        elif root.tag == '法規':
+            self._process_law_element(root)
+        else:
+            print(f"Error: Unexpected root tag '{root.tag}' in {xml_file_path}")
 
-            conn = None
-            try:
-                conn = self._get_db_connection()
-                cur = conn.cursor()
+    def _process_law_element(self, law_elem):
+        pcode = law_elem.find('法規網址').text.split('pcode=')[1]
+        xml_law_name = law_elem.find('法規名稱').text
+        xml_law_nature = law_elem.find('法規性質').text
+        xml_law_url = law_elem.find('法規網址').text
+        xml_law_category = law_elem.find('法規類別').text
+        xml_latest_change_date_str = law_elem.find('最新異動日期').text
+        xml_latest_change_date = datetime.strptime(xml_latest_change_date_str, '%Y%m%d').date() if xml_latest_change_date_str else None
+        xml_effective_date = law_elem.find('生效日期').text
+        xml_effective_content = law_elem.find('生效內容').text
+        xml_abolition_mark = law_elem.find('廢止註記').text
+        xml_is_english_translated = True if law_elem.find('是否英譯註記').text == 'Y' else False
+        xml_english_law_name = law_elem.find('英文法規名稱').text
+        xml_attachment = law_elem.find('附件').text
+        xml_history_content = law_elem.find('沿革內容').text
+        xml_preamble = law_elem.find('前言').text
 
-                # Check if law exists
-                cur.execute("SELECT id, llm_summary, llm_keywords FROM laws WHERE pcode = %s", (pcode,))
-                law_data = cur.fetchone()
+        conn = None
+        try:
+            conn = self._get_db_connection()
+            cur = conn.cursor()
 
-                if law_data:
-                    law_id, llm_summary, llm_keywords = law_data
-                    # Update existing law, preserving LLM generated fields
-                    cur.execute(
-                        """
-                        UPDATE laws SET
-                            xml_law_nature = %s, xml_law_name = %s, xml_law_url = %s,
-                            xml_law_category = %s, xml_latest_change_date = %s,
-                            xml_effective_date = %s, xml_effective_content = %s,
-                            xml_abolition_mark = %s, xml_is_english_translated = %s,
-                            xml_english_law_name = %s, xml_attachment = %s,
-                            xml_history_content = %s, xml_preamble = %s
-                        WHERE pcode = %s
-                        """,
-                        (
-                            xml_law_nature, xml_law_name, xml_law_url,
-                            xml_law_category, xml_latest_change_date,
-                            xml_effective_date, xml_effective_content,
-                            xml_abolition_mark, xml_is_english_translated,
-                            xml_english_law_name, xml_attachment,
-                            xml_history_content, xml_preamble, pcode
-                        )
+            # Check if law exists
+            cur.execute("SELECT id, llm_summary, llm_keywords FROM laws WHERE pcode = %s", (pcode,))
+            law_data = cur.fetchone()
+
+            if law_data:
+                law_id, llm_summary, llm_keywords = law_data
+                # Update existing law, preserving LLM generated fields
+                cur.execute(
+                    """
+                    UPDATE laws SET
+                        xml_law_nature = %s, xml_law_name = %s, xml_law_url = %s,
+                        xml_law_category = %s, xml_latest_change_date = %s,
+                        xml_effective_date = %s, xml_effective_content = %s,
+                        xml_abolition_mark = %s, xml_is_english_translated = %s,
+                        xml_english_law_name = %s, xml_attachment = %s,
+                        xml_history_content = %s, xml_preamble = %s
+                    WHERE pcode = %s
+                    """,
+                    (
+                        xml_law_nature, xml_law_name, xml_law_url,
+                        xml_law_category, xml_latest_change_date,
+                        xml_effective_date, xml_effective_content,
+                        xml_abolition_mark, xml_is_english_translated,
+                        xml_english_law_name, xml_attachment,
+                        xml_history_content, xml_preamble, pcode
                     )
-                    print(f"Updated law: {xml_law_name} (PCode: {pcode})")
-                else:
-                    # Insert new law
-                    cur.execute(
-                        """
-                        INSERT INTO laws (
-                            pcode, xml_law_nature, xml_law_name, xml_law_url,
-                            xml_law_category, xml_latest_change_date,
-                            xml_effective_date, xml_effective_content,
-                            xml_abolition_mark, xml_is_english_translated,
-                            xml_english_law_name, xml_attachment,
-                            xml_history_content, xml_preamble
-                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                        RETURNING id
-                        """,
-                        (
-                            pcode, xml_law_nature, xml_law_name, xml_law_url,
-                            xml_law_category, xml_latest_change_date,
-                            xml_effective_date, xml_effective_content,
-                            xml_abolition_mark, xml_is_english_translated,
-                            xml_english_law_name, xml_attachment,
-                            xml_history_content, xml_preamble
-                        )
+                )
+                print(f"Updated law: {xml_law_name} (PCode: {pcode})")
+            else:
+                # Insert new law
+                cur.execute(
+                    """
+                    INSERT INTO laws (
+                        pcode, xml_law_nature, xml_law_name, xml_law_url,
+                        xml_law_category, xml_latest_change_date,
+                        xml_effective_date, xml_effective_content,
+                        xml_abolition_mark, xml_is_english_translated,
+                        xml_english_law_name, xml_attachment,
+                        xml_history_content, xml_preamble
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    RETURNING id
+                    """,
+                    (
+                        pcode, xml_law_nature, xml_law_name, xml_law_url,
+                        xml_law_category, xml_latest_change_date,
+                        xml_effective_date, xml_effective_content,
+                        xml_abolition_mark, xml_is_english_translated,
+                        xml_english_law_name, xml_attachment,
+                        xml_history_content, xml_preamble
                     )
-                    law_id = cur.fetchone()[0]
-                    print(f"Inserted new law: {xml_law_name} (PCode: {pcode})")
-                
-                # Process articles
-                self._process_articles(cur, law_id, law_elem.find('法規內容'))
-                
-                conn.commit()
+                )
+                law_id = cur.fetchone()[0]
+                print(f"Inserted new law: {xml_law_name} (PCode: {pcode})")
+            
+            # Process articles
+            self._process_articles(cur, law_id, law_elem.find('法規內容'))
+            
+            conn.commit()
 
-            except Exception as e:
-                print(f"Error processing law {xml_law_name} (PCode: {pcode}): {e}")
-                if conn:
-                    conn.rollback()
-            finally:
-                if conn:
-                    cur.close()
-                    conn.close()
+        except Exception as e:
+            print(f"Error processing law {xml_law_name} (PCode: {pcode}): {e}")
+            if conn:
+                conn.rollback()
+        finally:
+            if conn:
+                cur.close()
+                conn.close()
 
     def _process_articles(self, cur, law_id, law_content_elem):
         if law_content_elem is None:

@@ -1,0 +1,107 @@
+
+"""
+This module contains the step definitions for BDD integration tests that connect to a live PostgreSQL database.
+It uses a setup/teardown approach to ensure existing data is not affected.
+"""
+import os
+import sys
+import subprocess
+import psycopg2
+import pytest
+from pytest_bdd import scenarios, given, when, then, parsers
+
+# Add project root to the Python path for module imports
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+
+# --- Load scenarios from the integration feature file ---
+scenarios('../features/integration_tests.feature')
+
+# --- Fixture for safe, direct database connection ---
+
+@pytest.fixture(scope='function')
+def safe_db_connection():
+    """Connects to a live database, cleans up specific test data before and after the test."""
+    conn_details = {
+        "host": os.getenv('DB_HOST', 'localhost'),
+        "port": os.getenv('DB_PORT', '5432'),
+        "user": os.getenv('DB_USER', 'lawuser'),
+        "password": os.getenv('DB_PASSWORD', 'lawpassword'),
+        "dbname": os.getenv('DB_NAME', 'lawdb')
+    }
+    test_law_names = ["中華民國憲法", "國家安全會議組織法"]
+
+    def cleanup_test_data():
+        try:
+            conn = psycopg2.connect(**conn_details)
+            with conn.cursor() as cursor:
+                for law_name in test_law_names:
+                    # Delete only the specific test law. Cascade should handle related articles.
+                    cursor.execute("DELETE FROM laws WHERE xml_law_name = %s;", (law_name,))
+            conn.commit()
+            conn.close()
+        except psycopg2.Error as e:
+            # If cleanup fails, print a warning but don't fail the test run
+            print(f"\nWARNING: Failed to clean up test data. Error: {e}")
+
+    # --- Setup: Clean up any leftover data from a previous failed run ---
+    cleanup_test_data()
+
+    yield conn_details
+
+    # --- Teardown: Clean up data created during the test ---
+    cleanup_test_data()
+
+
+# --- Step Definitions ---
+
+@given(parsers.parse('一個內容已知的法規 XML 檔案 "{file_path}" 和一個指向該檔案的清單檔案 "{list_file_path}"'), target_fixture='xml_file_for_integration')
+def known_xml_file_for_integration(tmp_path, file_path, list_file_path):
+    # We will use the actual data/xml_sample.xml
+    return os.path.abspath("data/xml_sample.xml")
+
+@given('一個乾淨且準備就緒的測試資料庫')
+def clean_test_database(safe_db_connection):
+    # The fixture ensures the specific test data is not present
+    pass
+
+@when('執行命令列工具匯入該清單檔案')
+def run_cli_for_integration(xml_file_for_integration, safe_db_connection):
+    env = os.environ.copy()
+    env["DB_HOST"] = safe_db_connection["host"]
+    env["DB_PORT"] = safe_db_connection["port"]
+    env["DB_USER"] = safe_db_connection["user"]
+    env["DB_PASSWORD"] = safe_db_connection["password"]
+    env["DB_NAME"] = safe_db_connection["dbname"]
+
+    command = [
+        sys.executable,
+        "law_cli.py",
+        "--import-xml", # Use --import-xml for the single XML file
+        xml_file_for_integration # This is now data/xml_sample.xml
+    ]
+    subprocess.run(command, check=True, env=env)
+
+@then(parsers.parse('資料庫的 "{table_name}" 資料表中應包含 "{law_name}" 的紀錄'))
+def check_law_record_in_db(safe_db_connection, table_name, law_name):
+    conn = psycopg2.connect(**safe_db_connection)
+    with conn.cursor() as cursor:
+        cursor.execute(f"SELECT xml_law_name FROM {table_name} WHERE xml_law_name = %s", (law_name,))
+        result = cursor.fetchone()
+        assert result is not None, f"Law '{law_name}' not found in table '{table_name}'"
+        assert result[0] == law_name
+    conn.close()
+
+@then(parsers.parse('資料庫的 "{table_name}" 資料表中應包含 "{law_name}" 的 {count:d} 筆法條紀錄'))
+def check_article_count_in_db(safe_db_connection, table_name, law_name, count):
+    conn = psycopg2.connect(**safe_db_connection)
+    with conn.cursor() as cursor:
+        cursor.execute("""
+            SELECT COUNT(a.id)
+            FROM articles a
+            JOIN laws l ON a.law_id = l.id
+            WHERE l.xml_law_name = %s
+        """, (law_name,))
+        result = cursor.fetchone()
+        assert result is not None
+        assert result[0] == count, f"Expected {count} articles for law '{law_name}', but found {result[0]}"
+    conn.close()
