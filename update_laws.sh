@@ -1,4 +1,5 @@
 #!/bin/bash
+set -x
 
 # ==============================================================================
 # Script: update_laws.sh
@@ -32,18 +33,18 @@
 # --- 變數設定 ---
 CLI_SCRIPT="law_cli.py"
 EXPORT_MD_DIR="output_dir"
-GEN_META_LIST_FILE="tmp/meta_gen_list.txt"
+GEN_META_LIST_FILE="tmp/gen_meta_list.txt"
 
 # 預設檔案路徑
 XML_FILE_DEFAULT="data/xml_sample.xml"
-SUMMARY_FILE_DEFAULT="data/summary_law.md"
-KEYWORDS_FILE_DEFAULT="data/keywords_law.csv"
-LAW_LIST_FILE_DEFAULT="data/law_tometa_list.txt"
+SUMMARY_FILE_DEFAULT="data/summary_sample.md"
+KEYWORDS_FILE_DEFAULT="data/keywords_sample.csv"
+LAW_LIST_FILE_DEFAULT="data/law_list.txt"
 
 # --- 參數解析與選項設定 ---
-SKIP_IMPORT_XML=false
-SKIP_UPDATE_SUMMARY=false
-SKIP_UPDATE_KEYWORDS=false
+SKIP_IMPORT_XML=true
+SKIP_UPDATE_SUMMARY=true
+SKIP_UPDATE_KEYWORDS=true
 SKIP_EXPORT_MD=false
 SKIP_GENERATE_META=false
 SKIP_IMPORT_META=false
@@ -197,7 +198,7 @@ if [ "$SKIP_GENERATE_META" = false ]; then
 
     # 生成 Meta Data (此步驟可能耗時較長且需要 GEMINI_API_KEY)
     echo "      -> 生成 Meta Data (此步驟可能耗時較長且需要 GEMINI_API_KEY) ..."
-    python3 "$CLI_SCRIPT" --generate-meta-list "$GEN_META_LIST_FILE"
+    python3 "$CLI_SCRIPT" --generate-meta-list "$LAW_LIST_FILE"
     if [ $? -ne 0 ]; then
         echo "錯誤：生成 Meta Data 失敗。程序中止。"
         exit 1
