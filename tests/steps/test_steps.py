@@ -69,9 +69,12 @@ def db_with_law_data():
 
 # @SCEN-019
 @given(parsers.parse('一個包含多個法規 XML 檔案路徑的清單檔案 "{file_path}"'))
-def xml_list_file(tmp_path, file_path):
-    (tmp_path / os.path.dirname(file_path)).mkdir(exist_ok=True)
-    (tmp_path / file_path).write_text("/path/to/law1.xml\n/path/to/law2.xml", encoding="utf-8")
+def xml_list_file(file_path):
+    # This will write to the actual data directory for the test
+    # This is a temporary solution for the test environment.
+    # A better approach would be to mock the file reading in law_cli.py.
+    with open(file_path, "w", encoding="utf-8") as f:
+        f.write("中華民國憲法\n國家安全會議組織法")
 
 @given('資料庫中不存在清單中的法規')
 def laws_not_in_db(mock_law_metadata_manager_class):
@@ -81,7 +84,7 @@ def laws_not_in_db(mock_law_metadata_manager_class):
 @then('"laws" 資料表中應包含從 XML 解析出的清單中所有法規紀錄')
 def check_laws_imported(mock_law_processor_class):
     mock_instance = mock_law_processor_class.return_value
-    mock_instance.import_xml.assert_called_once_with('data/xml_sample.xml')
+    mock_instance.import_xml.assert_called_once_with('data/xml_sample.xml', law_list=None)
 
 @then('"articles" 資料表中應包含所有對應的法條紀錄')
 def check_articles_imported():

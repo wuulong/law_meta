@@ -11,18 +11,26 @@ class LawProcessor:
     def _get_db_connection(self):
         return psycopg2.connect(**self.db_config)
 
-    def import_xml(self, xml_file_path):
+    def import_xml(self, xml_file_path, law_list=None):
         print(f"Processing XML file: {xml_file_path}")
         tree = ET.parse(xml_file_path)
         root = tree.getroot()
 
+        laws_to_process = []
         if root.tag == 'LAWS':
-            for law_elem in root.findall('法規'):
-                self._process_law_element(law_elem)
+            laws_to_process = root.findall('法規')
         elif root.tag == '法規':
-            self._process_law_element(root)
+            laws_to_process = [root]
         else:
             print(f"Error: Unexpected root tag '{root.tag}' in {xml_file_path}")
+            return
+
+        for law_elem in laws_to_process:
+            xml_law_name = law_elem.find('法規名稱').text
+            if law_list and xml_law_name not in law_list:
+                print(f"Skipping law '{xml_law_name}' as it is not in the provided law list.")
+                continue
+            self._process_law_element(law_elem)
 
     def _process_law_element(self, law_elem):
         pcode = law_elem.find('法規網址').text.split('pcode=')[1]

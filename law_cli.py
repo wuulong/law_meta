@@ -54,7 +54,11 @@ def main():
     law_metadata_manager = LawMetadataManager(db_config, gemini_api_key, init_gemini=init_gemini)
 
     if args.import_xml:
-        law_processor.import_xml(args.import_xml)
+        law_list_content = None
+        if args.law_list:
+            with open(args.law_list, 'r', encoding='utf-8') as f:
+                law_list_content = [line.strip() for line in f if line.strip()]
+        law_processor.import_xml(args.import_xml, law_list=law_list_content)
     elif args.update_summary:
         law_processor.update_summary(args.update_summary)
     elif args.update_keywords:
