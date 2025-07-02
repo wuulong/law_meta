@@ -187,14 +187,6 @@ echo ""
 
 # 步驟 5: 準備 Meta Data 生成列表檔案並生成 Meta Data
 if [ "$SKIP_GENERATE_META" = false ]; then
-    echo "[5/6] 準備 Meta Data 生成列表檔案 ..."
-    > "$GEN_META_LIST_FILE" # 清空或創建檔案
-    while IFS= read -r LAW_NAME || [[ -n "$LAW_NAME" ]]; do
-        if [ -z "$LAW_NAME" ]; then
-            continue
-        fi
-        echo "$LAW_NAME,$EXPORT_MD_DIR/$LAW_NAME.md" >> "$GEN_META_LIST_FILE"
-    done < "$LAW_LIST_FILE"
 
     # 生成 Meta Data (此步驟可能耗時較長且需要 GEMINI_API_KEY)
     echo "      -> 生成 Meta Data (此步驟可能耗時較長且需要 GEMINI_API_KEY) ..."
