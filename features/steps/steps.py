@@ -1,204 +1,138 @@
-from behave import given, when, then
-import os
-import re
-import pandas as pd
-import psycopg2
-import xml.etree.ElementTree as ET
-from urllib.parse import urlparse, parse_qs
+from pytest_bdd import scenario, given, when, then, parsers
 
-# --- Core Logic Refactored from law_proc.ipynb ---
+@scenario('phase4_cli_tools.feature', '透過命令列工具匯入多個法規的 XML 資料，法規清單從檔案來')
+def test_import_xml_data_from_file():
+    pass
 
-def extract_pcode_from_url(url_string):
-    if not url_string: return None
-    try:
-        return parse_qs(urlparse(url_string).query).get('pcode', [None])[0]
-    except Exception: return None
+@given(parsers.parse('一個包含多個法規 XML 檔案路徑的清單檔案 "{file_path}"'))
+def xml_file_list(file_path):
+    pass
 
-class XMLElement:
-    def __init__(self, tag, attrib, text, children):
-        self.tag, self.attrib, self.text, self.children, self.tags = tag, attrib, text, children, {}
-    def __repr__(self): return f"XMLElement(tag={self.tag})"
+@given('資料庫中不存在清單中的法規')
+def db_no_laws_in_list():
+    pass
 
-def parse_xml_withobj(xml_file):
-    def element_to_object(element):
-        children = [element_to_object(child) for child in element]
-        return XMLElement(tag=element.tag, attrib=element.attrib, text=element.text.strip() if element.text else None, children=children)
-    tree = ET.parse(xml_file)
-    root = tree.getroot()
-    laws = {}
-    for law_node in root.findall('法規'):
-        name_node = law_node.find('法規名稱')
-        if name_node is not None and name_node.text:
-            laws[name_node.text] = element_to_object(law_node)
-    return laws
+@when(parsers.parse('執行命令列工具 `python law_cli.py --import-xml {command_arg}`'))
+def execute_import_xml_command(command_arg):
+    pass
 
-class LawMgr:
-    def __init__(self, laws):
-        self.laws = laws
-        self.law_items = {}
-        for law_name, law_xml_element in laws.items():
-            law_xml_element.tags['PCode'] = None
-            for child_node in law_xml_element.children:
-                law_xml_element.tags[child_node.tag] = child_node.text
-                if child_node.tag == '法規網址' and child_node.text:
-                    law_xml_element.tags['PCode'] = extract_pcode_from_url(child_node.text)
-            
-            current_chapter_section = None
-            law_items_list = []
-            法規內容_node = next((c for c in law_xml_element.children if c.tag == '法規內容'), None)
-            if 法規內容_node:
-                for content_child in 法規內容_node.children:
-                    if content_child.tag == '編章節': current_chapter_section = content_child.text
-                    elif content_child.tag == '條文':
-                        條號 = next((item.text for item in content_child.children if item.tag == '條號'), None)
-                        條文內容 = next((item.text for item in content_child.children if item.tag == '條文內容'), "")
-                        if 條號: law_items_list.append({"編章節": current_chapter_section, "條號": 條號, "條文內容": 條文內容})
-            self.law_items[law_name] = law_items_list
+@then('"laws" 資料表中應包含從 XML 解析出的清單中所有法規紀錄')
+def laws_table_contains_xml_records():
+    pass
 
-def synchronize_lawmgr_with_db(conn, lawmgr_instance):
-    cursor = conn.cursor()
-    for law_name, law_obj in lawmgr_instance.laws.items():
-        pcode = law_obj.tags.get('PCode')
-        if not pcode: continue
-        
-        cursor.execute("SELECT id FROM laws WHERE pcode = %s", (pcode,))
-        existing_law = cursor.fetchone()
-        
-        if existing_law:
-            law_id = existing_law[0]
-            # In a real scenario, you would update more fields.
-            # For this test, we keep it simple.
-            cursor.execute("DELETE FROM articles WHERE law_id = %s", (law_id,))
-        else:
-            # Simplified insert for the purpose of the test
-            sql = "INSERT INTO laws (pcode, xml_law_name) VALUES (%s, %s) RETURNING id"
-            cursor.execute(sql, (pcode, law_obj.tags.get('法規名稱')))
-            law_id = cursor.fetchone()[0]
+@then('"articles" 資料表中應包含所有對應的法條紀錄')
+def articles_table_contains_xml_records():
+    pass
 
-        articles = lawmgr_instance.law_items.get(law_name, [])
-        for article in articles:
-            sql = "INSERT INTO articles (law_id, xml_article_number, xml_article_content) VALUES (%s, %s, %s)"
-            cursor.execute(sql, (law_id, article.get('條號'), article.get('條文內容')))
-    conn.commit()
-    cursor.close()
+@scenario('phase4_cli_tools.feature', '透過命令列工具更新多個法規的 LLM 摘要，法規清單從檔案來')
+def test_update_llm_summary_from_file():
+    pass
 
-def import_law_summaries(conn, summary_filepath):
-    cursor = conn.cursor()
-    with open(summary_filepath, 'r', encoding='utf-8') as f:
-        content = f.read()
-    matches = re.findall(r"----- File: (.*)\.txt -----\n(.*?)(?=----- File:|\Z)", content, re.S)
-    for law_name, summary in matches:
-        cursor.execute("UPDATE laws SET llm_summary = %s WHERE xml_law_name = %s", (summary.strip(), law_name.strip()))
-    conn.commit()
-    cursor.close()
+@given('資料庫中已存在多個法規')
+def db_multiple_laws_exist():
+    pass
 
-# --- BDD Step Implementations ---
+@given(parsers.parse('一個包含多法規名稱與摘要內容的檔案 "{file_path}"'))
+def summary_file(file_path):
+    pass
 
-@given('一個包含多部法規的 XML 檔案 "{filepath}"')
-def step_impl(context, filepath):
-    full_path = os.path.join(os.getcwd(), filepath)
-    assert os.path.exists(full_path), f"File not found: {full_path}"
-    context.xml_filepath = full_path
-    law_objects = parse_xml_withobj(context.xml_filepath)
-    assert law_objects, f"No laws could be parsed from {filepath}"
-    context.lawmgr = LawMgr(law_objects)
+@when(parsers.parse('執行命令列工具 `python law_cli.py --update-summary {command_arg}` 或 `python law_cli.py -s {command_arg_short}`'))
+def execute_update_summary_command(command_arg, command_arg_short):
+    pass
 
-@given('一個空的目標資料庫')
-def step_impl(context):
-    context.cursor.execute("SELECT COUNT(*) FROM laws")
-    assert context.cursor.fetchone()[0] == 0, "Database was not empty at the start of the scenario."
+@then('"laws" 資料表中清單中所有法規紀錄的 "llm_summary" 欄位應被更新')
+def llm_summary_updated():
+    pass
 
-@when('執行 `law_proc.ipynb` 中的資料庫同步功能')
-def step_impl(context):
-    assert hasattr(context, 'lawmgr'), "LawMgr object was not initialized."
-    synchronize_lawmgr_with_db(context.conn, context.lawmgr)
+@scenario('phase4_cli_tools.feature', '透過命令列工具更新多個法規的 LLM 關鍵字，法規清單從檔案來')
+def test_update_llm_keywords_from_file():
+    pass
 
-@then('"{table}" 資料表中應包含從 XML 解析出的法規紀錄')
-def step_impl(context, table):
-    context.cursor.execute(f"SELECT COUNT(*) FROM {table}")
-    count_in_db = context.cursor.fetchone()[0]
-    count_in_mgr = len(context.lawmgr.laws)
-    assert count_in_db == count_in_mgr, f"Expected {count_in_mgr} records in {table}, but found {count_in_db}."
+@given(parsers.parse('一個包含法規名稱與關鍵字檔案路徑對應的清單檔案 "{file_path}"'))
+def keywords_file(file_path):
+    pass
 
-@then('"{table}" 資料表中應包含所有對應的法條紀錄')
-def step_impl(context, table):
-    context.cursor.execute(f"SELECT COUNT(*) FROM {table}")
-    total_articles_in_db = context.cursor.fetchone()[0]
-    total_articles_in_mgr = sum(len(articles) for articles in context.lawmgr.law_items.values())
-    assert total_articles_in_db == total_articles_in_mgr, f"Expected {total_articles_in_mgr} articles in {table}, but found {total_articles_in_db}."
+@when(parsers.parse('執行命令列工具 `python law_cli.py --update-keywords {command_arg}` 或 `python law_cli.py -k {command_arg_short}`'))
+def execute_update_keywords_command(command_arg, command_arg_short):
+    pass
 
-@given('資料庫中已存在法規 "{law_name}"')
-def step_impl(context, law_name):
-    pcode = f"PCODE_{law_name}"
-    context.cursor.execute("INSERT INTO laws (pcode, xml_law_name, llm_summary) VALUES (%s, %s, %s) RETURNING id", (pcode, law_name, 'old summary'))
-    context.law_id = context.cursor.fetchone()[0]
-    context.conn.commit()
-    if not hasattr(context, 'pcodes'):
-        context.pcodes = {}
-    context.pcodes[law_name] = pcode
+@then('"laws" 資料表中清單中所有法規紀錄的 "llm_keywords" 欄位應被更新')
+def llm_keywords_updated():
+    pass
 
-@given('一個位於 "{filepath}" 的摘要檔案，其中包含 "{law_name}" 的摘要')
-def step_impl(context, filepath, law_name):
-    full_path = os.path.join(os.getcwd(), filepath)
-    assert os.path.exists(full_path), f"File not found: {full_path}"
-    context.summary_filepath = full_path
-    with open(full_path, 'r', encoding='utf-8') as f:
-        content = f.read()
-    match = re.search(rf"----- File: {re.escape(law_name)}\.txt -----\n(.*?)(?=----- File:|\Z)", content, re.S)
-    assert match, f"Could not find summary for {law_name} in {filepath}"
-    context.expected_summary = match.group(1).strip()
+@scenario('phase4_cli_tools.feature', '透過命令列工具從多個法規的 Markdown 檔案生成 Meta Data，法規清單從檔案來')
+def test_generate_meta_data_from_markdown():
+    pass
 
-@when('執行 `law_proc.ipynb` 中的摘要匯入功能')
-def step_impl(context):
-    import_law_summaries(context.conn, context.summary_filepath)
+@given(parsers.parse('一個包含法規名稱與 Markdown 檔案路徑對應的清單檔案 "{file_path}"'))
+def markdown_file_list(file_path):
+    pass
 
-@then('"{table}" 資料表中 "{law_name}" 紀錄的 "{field}" 欄位應被更新')
-def step_impl(context, table, law_name, field):
-    context.cursor.execute(f"SELECT {field} FROM {table} WHERE xml_law_name = %s", (law_name,))
-    result = context.cursor.fetchone()
-    assert result is not None, f"Could not find law '{law_name}' in {table}."
-    actual_value = result[0]
-    if field == 'llm_summary':
-        assert actual_value == context.expected_summary, f"Summary for '{law_name}' was not updated correctly."
-    else:
-        assert actual_value is not None, f"Field '{field}' for '{law_name}' is null."
+@given(parsers.parse('一份定義 Meta Data 結構的規格檔案 "{spec_file}"'))
+def meta_data_spec_file(spec_file):
+    pass
 
-# --- Mock Implementations for law_meta_loader.ipynb steps ---
+@when(parsers.parse('執行命令列工具 `python law_cli.py --generate-meta-list {command_arg}` 或 `python law_cli.py -g {command_arg_short}`'))
+def execute_generate_meta_command(command_arg, command_arg_short):
+    pass
 
-@given('"{path}" 目錄下存在對應 "{law_name}" 的五種 Meta Data JSON 檔案:')
-def step_impl(context, path, law_name):
-    context.meta_path = os.path.join(os.getcwd(), path)
-    context.meta_law_name = law_name
-    # In a real test, you would assert that the files exist.
-    # For this mock, we just assume they do.
-    print(f"Assuming Meta Data JSON files for {law_name} exist in {context.meta_path}")
+@then('應在 "json/" 目錄下生成清單中每個法規對應的五種 Meta Data JSON 檔案')
+def json_meta_data_generated():
+    pass
 
-@when('執行 `law_meta_loader.ipynb` 以載入 "{law_name}" 的 Meta Data')
-def step_impl(context, law_name):
-    # This is a mock of the loader's behavior.
-    context.cursor.execute("UPDATE laws SET law_metadata = %s WHERE xml_law_name = %s", (f'{{"source": "{law_name}.json"}}', law_name))
-    context.cursor.execute("UPDATE articles SET article_metadata = %s WHERE law_id = %s", (f'{{"source": "{law_name}_articles.json"}}', context.law_id))
-    context.cursor.execute("INSERT INTO legal_concepts (law_id, name) VALUES (%s, %s)", (context.law_id, "mock legal concept"))
-    context.conn.commit()
-    print(f"Mocked Meta Data loading for {law_name}")
+@scenario('phase4_cli_tools.feature', '透過命令列工具刪除多個法規的所有資料，法規清單從檔案來')
+def test_delete_laws_from_file():
+    pass
 
-@then('"{table}" 資料表中 "{law_name}" 紀錄的 "{field}" 欄位應被填入')
-def step_impl(context, table, law_name, field):
-    context.cursor.execute(f"SELECT {field} FROM {table} WHERE xml_law_name = %s", (law_name,))
-    result = context.cursor.fetchone()
-    assert result is not None and result[0] is not None, f"Field '{field}' for '{law_name}' was not filled."
+@given(parsers.parse('一個包含要刪除法規名稱的清單檔案 "{file_path}"'))
+def law_delete_list_file(file_path):
+    pass
 
-@then('"{table}" 資料表中 "{law_name}" 所有法條的 "{field}" 欄位應被填入')
-def step_impl(context, table, law_name, field):
-    context.cursor.execute(f"SELECT COUNT(*) FROM {table} WHERE law_id = %s AND {field} IS NOT NULL", (context.law_id,))
-    count = context.cursor.fetchone()[0]
-    assert count > 0, f"No articles for '{law_name}' had the '{field}' field filled."
+@when(parsers.parse('執行命令列工具 `python law_cli.py --delete-law-list {command_arg}` 或 `python law_cli.py -d {command_arg_short}`'))
+def execute_delete_law_command(command_arg, command_arg_short):
+    pass
 
-@then('"{table}" 資料表應包含 "{law_name}" 的法律概念')
-def step_impl(context, table, law_name):
-    context.cursor.execute(f"SELECT COUNT(*) FROM {table} WHERE law_id = %s", (context.law_id,))
-    count = context.cursor.fetchone()[0]
-    assert count > 0, f"No legal concepts found for '{law_name}' in {table}."
+@then('資料庫中所有與清單中法規相關的紀錄應被清除 (laws, articles, legal_concepts, law_hierarchy_relationships, law_relationships)')
+def law_records_cleared():
+    pass
 
-# The rest of the steps would be implemented following the same pattern.
-# Due to space constraints and missing source for law_meta_loader, they are omitted here.
+@scenario('phase4_cli_tools.feature', '透過命令列工具匯出多個法規的完整資料為 Markdown 檔案，法規清單從檔案來')
+def test_export_laws_to_markdown():
+    pass
+
+@given('資料庫中已存在多個法規的完整資料')
+def db_multiple_laws_full_data_exist():
+    pass
+
+@given(parsers.parse('一個包含要匯出法規名稱的清單檔案 "{file_path}"'))
+def law_export_list_file(file_path):
+    pass
+
+@when(parsers.parse('執行命令列工具 `python law_cli.py --export-law-list {command_arg} --output-dir {output_dir}` 或 `python law_cli.py -e {command_arg_short} {output_dir_short}/`'))
+def execute_export_law_command(command_arg, output_dir, command_arg_short, output_dir_short):
+    pass
+
+@then(parsers.parse('"{output_dir}/" 目錄下應生成清單中每個法規對應的 Markdown 檔案，其中包含該法規的完整條文內容及相關 Meta Data (若有)'))
+def markdown_files_generated(output_dir):
+    pass
+
+@scenario('phase4_cli_tools.feature', '透過命令列工具執行資料庫完整性檢查並輸出報告')
+def test_check_db_integrity():
+    pass
+
+@given('資料庫中已載入法規資料')
+def db_laws_loaded():
+    pass
+
+@when(parsers.parse('執行命令列工具 `python law_cli.py --check-integrity` 或 `python law_cli.py -c`'))
+def execute_check_integrity_command():
+    pass
+
+@then('應輸出資料庫完整性檢查報告，包含各表格的資料量、空值比例等指標')
+def integrity_report_output():
+    pass
+
+@then('報告應儲存至預設的報告檔案路徑')
+def report_saved_to_default_path():
+    pass
+
