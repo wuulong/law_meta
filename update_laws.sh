@@ -206,7 +206,7 @@ if [ "$SKIP_IMPORT_META" = false ]; then
     echo "[6/6] 匯入 Meta Data ..."
     # 注意：law_cli.py --import-meta-list 預期的是 law_list_file，其中包含法規名稱
     # 它會根據這些名稱去 tmp/meta_data_temp/ 目錄下尋找對應的 JSON 檔案。
-    python3 "$CLI_SCRIPT" --import-meta-list "$LAW_LIST_FILE"
+    python3 "$CLI_SCRIPT" --import-meta-list --law-list "$LAW_LIST_FILE"
     if [ $? -ne 0 ]; then
         echo "錯誤：匯入 Meta Data 失敗。程序中止。"
         exit 1

@@ -191,7 +191,7 @@ class LawProcessor:
                 cur.close()
                 conn.close()
 
-    def update_keywords(self, keyword_csv_path):
+    def update_keywords(self, keyword_csv_path, law_list=None):
         import pandas as pd
         
         conn = None
@@ -206,6 +206,11 @@ class LawProcessor:
 
             for index, row in grouped_keywords.iterrows():
                 law_name = row['filename']
+                
+                if law_list and law_name not in law_list:
+                    print(f"Skipping keyword update for law '{law_name}' as it is not in the provided law list.")
+                    continue
+                
                 llm_keywords = row['keywords']
                 
                 print(f"Updating keywords for law: {law_name}")
@@ -395,3 +400,45 @@ class LawProcessor:
             if conn:
                 cur.close()
                 conn.close()
+
+    def generate_summary_from_md(self, law_list_file_path, output_dir, law_metadata_manager, summary_example_file_path=None):
+        import os
+        os.makedirs(output_dir, exist_ok=True)
+
+        all_summaries_content = []
+
+        with open(law_list_file_path, 'r', encoding='utf-8') as f:
+            law_names = [line.strip() for line in f if line.strip()]
+
+        for law_name in law_names:
+            md_file_path = os.path.join('data', f"{law_name}.md")
+            if not os.path.exists(md_file_path):
+                print(f"Warning: Markdown file not found for {law_name} at {md_file_path}. Skipping.")
+                continue
+
+            print(f"Generating summary for {law_name} from {md_file_path}...")
+            with open(md_file_path, 'r', encoding='utf-8') as f:
+                md_content = f.read()
+
+            # Use LawMetadataManager to generate summary
+            summary_example_content = ""
+            if summary_example_file_path and os.path.exists(summary_example_file_path):
+                with open(summary_example_file_path, 'r', encoding='utf-8') as f:
+                    summary_example_content = f.read()
+                print(f"Including summary example from: {summary_example_file_path}")
+
+            generated_summary = law_metadata_manager.generate_llm_summary(law_name, md_content, summary_example_content)
+
+            # Format the summary as per the example
+            formatted_summary = f"""----- File: {law_name}.txt -----
+**法規名稱：{law_name}**
+**關鍵資訊摘要（300字以內）**
+{generated_summary}
+"""
+            all_summaries_content.append(formatted_summary)
+            print(f"Generated summary for {law_name}.")
+        
+        final_output_file_path = os.path.join(output_dir, "all_laws_summary.md")
+        with open(final_output_file_path, 'w', encoding='utf-8') as of:
+            of.write("\n\n".join(all_summaries_content))
+        print(f"Successfully generated all summaries to {final_output_file_path}")
