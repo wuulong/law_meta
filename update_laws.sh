@@ -159,7 +159,7 @@ echo ""
 # 步驟 3: 更新法規關鍵字 (處理整個關鍵字檔案)
 if [ "$SKIP_UPDATE_KEYWORDS" = false ]; then
     echo "[3/6] 更新關鍵字 (from Keywords File) ..."
-    python3 "$CLI_SCRIPT" --update-keywords "$KEYWORDS_FILE"
+    python3 "$CLI_SCRIPT" --update-keywords "$KEYWORDS_FILE" --law-list "$LAW_LIST_FILE"
     if [ $? -ne 0 ]; then
         echo "錯誤：更新關鍵字失敗。程序中止。"
         exit 1
@@ -190,7 +190,7 @@ if [ "$SKIP_GENERATE_META" = false ]; then
 
     # 生成 Meta Data (此步驟可能耗時較長且需要 GEMINI_API_KEY)
     echo "      -> 生成 Meta Data (此步驟可能耗時較長且需要 GEMINI_API_KEY) ..."
-    python3 "$CLI_SCRIPT" --generate-meta-list "$LAW_LIST_FILE"
+    python3 "$CLI_SCRIPT" --generate-meta-list --law-list "$LAW_LIST_FILE"
     if [ $? -ne 0 ]; then
         echo "錯誤：生成 Meta Data 失敗。程序中止。"
         exit 1
