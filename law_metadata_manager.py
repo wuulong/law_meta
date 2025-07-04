@@ -157,7 +157,7 @@ class LawMetadataManager:
                     code = concept.get('代號')
                     name = concept.get('詞彙名稱')
                     if code and name:
-                        cur.execute("INSERT INTO legal_concepts (law_id, code, name, data) VALUES (%s, %s, %s, %s)",
+                        cur.execute("INSERT INTO legal_concepts (law_id, code, name, data) VALUES (%s, %s, %s, %s) ON CONFLICT (law_id, code) DO NOTHING;",
                                     (law_id, code, name, json.dumps(concept)))
                     else:
                         print(f"Warning: Legal concept missing '代號' or '詞彙名稱' for law '{law_name}'.")
