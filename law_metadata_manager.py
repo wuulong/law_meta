@@ -9,10 +9,11 @@ import time
 import psycopg2
 
 class LawMetadataManager:
-    def __init__(self, db_config, gemini_api_key, init_gemini=True):
+    def __init__(self, db_config, gemini_api_key, init_gemini=True, force_update=False):
         self.db_config = db_config
         self.client = None
         self.spec_file = None
+        self.force_update = force_update # Store the force_update flag
         if init_gemini:
             self.client = genai.Client(api_key=gemini_api_key) # Initialize client once
             
@@ -98,12 +99,18 @@ class LawMetadataManager:
 
             # Get law_id first, as it's needed for articles and relationships
             law_id = None
-            cur.execute("SELECT id FROM laws WHERE xml_law_name = %s", (law_name,))
-            law_id_result = cur.fetchone()
-            if law_id_result:
-                law_id = law_id_result[0]
+            cur.execute("SELECT id, law_metadata FROM laws WHERE xml_law_name = %s", (law_name,))
+            law_result = cur.fetchone()
+            if law_result:
+                law_id = law_result[0]
+                existing_law_metadata = law_result[1]
             else:
                 print(f"Error: Law '{law_name}' not found in DB. Cannot load metadata.")
+                return
+
+            # Check if law_metadata already exists and force_update is False
+            if not self.force_update and existing_law_metadata is not None:
+                print(f"Skipping loading metadata for {law_name}: law_metadata already exists. Use --force-meta-update to override.")
                 return
 
             # 1. Load Law Meta Data (law_regulation.json)
@@ -395,8 +402,9 @@ class LawMetadataManager:
             if json_match:
                 json_string = json_match.group(1).strip()
             else:
-                json_string = ""
-                print(f"Warning: No JSON block found in raw text for {meta_type_key}.")
+                # If no ```json block is found, try to parse the whole text as JSON
+                json_string = raw_text.strip()
+                print(f"Warning: No JSON block found in raw text for {meta_type_key}. Attempting to parse entire text as JSON.")
 
             json_string = re.sub(r'//.*\n', '', json_string)
             json_string = re.sub(r'/\*.*?\*/', '', json_string, flags=re.DOTALL)
@@ -491,8 +499,8 @@ class LawMetadataManager:
             raw_output_file = os.path.join(tmp_output_dir, f"{law_name}_{meta_type_key}.txt") # Define raw_output_file here
 
             # Check if the final JSON file already exists
-            if meta_type_key != 'law_articles' and os.path.exists(output_file):
-                print(f"Skipping generation for {meta_type_key}: {output_file} already exists.")
+            if not self.force_update and meta_type_key != 'law_articles' and os.path.exists(output_file):
+                print(f"Skipping generation for {meta_type_key}: {output_file} already exists. Use --force-meta-update to override.")
                 continue
 
             b_need = True # Assume we need to generate, unless processed from existing raw file
@@ -630,3 +638,32 @@ class LawMetadataManager:
             with open(articles_output_file, 'w', encoding='utf-8') as f:
                 json.dump(all_articles_metadata, f, ensure_ascii=False, indent=2)
             print(f"Generated all law articles to {articles_output_file}")
+
+    def generate_llm_summary(self, law_name, md_content, summary_example_content=""):
+        """
+        Generates a summary for a given law using LLM based on its Markdown content.
+        Optionally includes example summary content in the prompt.
+        """
+        if not self.client:
+            print("Error: Gemini API client not initialized. Cannot generate summary.")
+            return ""
+
+        prompt_parts = [
+            f"請根據以下法規的 Markdown 內容，生成一份簡要摘要（300字以內）。"
+        ]
+
+        if summary_example_content:
+            prompt_parts.append(f"\n\n以下是一個摘要範例，請參考其風格和內容結構：\n{summary_example_content}")
+
+        prompt_parts.append(f"\n\n法規內容：\n{md_content}")
+
+        user_prompt = "".join(prompt_parts)
+
+        print(f"Generating LLM summary for {law_name}...")
+        try:
+            # Use the existing _call_gemini_api to interact with the LLM
+            summary_text = self._call_gemini_api(law_name, md_content, user_prompt)
+            return summary_text.strip()
+        except Exception as e:
+            print(f"Error generating summary for {law_name}: {e}")
+            return ""
