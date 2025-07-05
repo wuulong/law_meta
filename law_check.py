@@ -463,6 +463,9 @@ def check_metadata_completeness():
         # 計算 laws 表格中 law_metadata 欄位有值的法規數量
         db_cursor.execute("SELECT COUNT(*) FROM laws WHERE law_metadata IS NOT NULL AND law_metadata::text != 'null' AND law_metadata::text != '{}';")
         filled_law_metadata_count = db_cursor.fetchone()[0]
+        # 計算 laws 表格中 law_metadata 欄位有值的法規數量
+        db_cursor.execute("SELECT COUNT(*) FROM laws WHERE law_metadata IS NOT NULL AND law_metadata::text != 'null' AND law_metadata::text != '{}';")
+        filled_law_metadata_count = db_cursor.fetchone()[0]
         print(f"laws 表格中 law_metadata 欄位為空的法規數量: {empty_law_metadata_count}，非空的法規數量：{filled_law_metadata_count}")
 
         # 檢查 articles 表格中 article_metadata 欄位為空的法條數量
@@ -485,6 +488,47 @@ def check_metadata_completeness():
         empty_relationship_data_count = db_cursor.fetchone()[0]
         print(f"law_relationships 表格中 data 欄位為空的關聯性資料數量: {empty_relationship_data_count}")
 
+        # 新增：統計每個表格中包含的法規數量
+        db_cursor.execute("SELECT COUNT(DISTINCT law_id) FROM articles;")
+        distinct_laws_in_articles = db_cursor.fetchone()[0]
+        print(f"articles 表格中包含的法規數量: {distinct_laws_in_articles}")
+
+        db_cursor.execute("SELECT COUNT(DISTINCT law_id) FROM legal_concepts;")
+        distinct_laws_in_legal_concepts = db_cursor.fetchone()[0]
+        print(f"legal_concepts 表格中包含的法規數量: {distinct_laws_in_legal_concepts}")
+
+        # 修正：law_hierarchy_relationships 表格中包含的法規數量 (主法規或關聯法規)
+        db_cursor.execute("""
+            SELECT COUNT(DISTINCT law_id) FROM (
+                SELECT main_law_id AS law_id FROM law_hierarchy_relationships WHERE main_law_id IS NOT NULL
+                UNION
+                SELECT related_law_id AS law_id FROM law_hierarchy_relationships WHERE related_law_id IS NOT NULL
+            ) AS combined_laws;
+        """)
+        distinct_laws_in_hierarchy = db_cursor.fetchone()[0]
+        print(f"law_hierarchy_relationships 表格中包含的法規數量 (主法規或關聯法規): {distinct_laws_in_hierarchy}")
+
+        # 修正：law_relationships 表格中包含的法規數量 (主法規或關聯法規)
+        db_cursor.execute("""
+            SELECT COUNT(DISTINCT law_id) FROM (
+                SELECT main_law_id AS law_id FROM law_relationships WHERE main_law_id IS NOT NULL
+                UNION
+                SELECT related_law_id AS law_id FROM law_relationships WHERE related_law_id IS NOT NULL
+            ) AS combined_laws;
+        """)
+        distinct_laws_in_relationships = db_cursor.fetchone()[0]
+        print(f"law_relationships 表格中包含的法規數量 (主法規或關聯法規): {distinct_laws_in_relationships}")
+
+        # 新增：law_relationships 表格中包含的法規數量 (主法規)
+        db_cursor.execute("SELECT COUNT(DISTINCT main_law_id) FROM law_relationships WHERE main_law_id IS NOT NULL;")
+        distinct_main_laws_in_relationships = db_cursor.fetchone()[0]
+        print(f"law_relationships 表格中包含的法規數量 (主法規): {distinct_main_laws_in_relationships}")
+
+        # 新增：law_hierarchy_relationships 表格中包含的法規數量 (主法規)
+        db_cursor.execute("SELECT COUNT(DISTINCT main_law_id) FROM law_hierarchy_relationships WHERE main_law_id IS NOT NULL;")
+        distinct_main_laws_in_hierarchy = db_cursor.fetchone()[0]
+        print(f"law_hierarchy_relationships 表格中包含的法規數量 (主法規): {distinct_main_laws_in_hierarchy}")
+
         # 計算比例
         law_metadata_filled_percentage = (total_laws - empty_law_metadata_count) * 100.0 / total_laws if total_laws > 0 else 0
         article_metadata_filled_percentage = (total_articles - empty_article_metadata_count) * 100.0 / total_articles if total_articles > 0 else 0
@@ -497,6 +541,91 @@ def check_metadata_completeness():
         print(f"legal_concepts 表格中 data 欄位有值的法律概念比例: {legal_concept_data_filled_percentage:.2f}%")
         print(f"law_hierarchy_relationships 表格中 data 欄位有值的階層關係比例: {hierarchy_data_filled_percentage:.2f}%")
         print(f"law_relationships 表格中 data 欄位有值的關聯性資料比例: {relationship_data_filled_percentage:.2f}%")
+
+        # Get all laws with law_metadata
+        db_cursor.execute("SELECT id, xml_law_name FROM laws WHERE law_metadata IS NOT NULL AND law_metadata::text != 'null' AND law_metadata::text != '{}';")
+        laws_with_metadata_results = db_cursor.fetchall()
+        laws_with_metadata_map = {law_id: law_name for law_id, law_name in laws_with_metadata_results}
+        laws_with_metadata_ids = set(laws_with_metadata_map.keys())
+
+        print("\n--- 檢查 Meta Data 遺漏法規列表 ---")
+
+        # Check articles table
+        db_cursor.execute("SELECT DISTINCT law_id FROM articles;")
+        laws_in_articles = {row[0] for row in db_cursor.fetchall()}
+        missing_in_articles_ids = laws_with_metadata_ids - laws_in_articles
+        if missing_in_articles_ids:
+            print("articles 表格中遺漏的法規:")
+            for law_id in missing_in_articles_ids:
+                print(f"  - {laws_with_metadata_map.get(law_id, '未知法規')}")
+        else:
+            print("articles 表格中沒有遺漏的法規。")
+
+        # Check legal_concepts table
+        db_cursor.execute("SELECT DISTINCT law_id FROM legal_concepts;")
+        laws_in_legal_concepts = {row[0] for row in db_cursor.fetchall()}
+        missing_in_legal_concepts_ids = laws_with_metadata_ids - laws_in_legal_concepts
+        if missing_in_legal_concepts_ids:
+            print("legal_concepts 表格中遺漏的法規:\n")
+            for law_id in missing_in_legal_concepts_ids:
+                print(f"  - {laws_with_metadata_map.get(law_id, '未知法規')}")
+        else:
+            print("legal_concepts 表格中沒有遺漏的法規。")
+
+        # Check law_hierarchy_relationships table
+        db_cursor.execute("""
+            SELECT DISTINCT law_id FROM (
+                SELECT main_law_id AS law_id FROM law_hierarchy_relationships WHERE main_law_id IS NOT NULL
+                UNION
+                SELECT related_law_id AS law_id FROM law_hierarchy_relationships WHERE related_law_id IS NOT NULL
+            ) AS combined_laws;
+        """)
+        laws_in_hierarchy = {row[0] for row in db_cursor.fetchall()}
+        missing_in_hierarchy_ids = laws_with_metadata_ids - laws_in_hierarchy
+        if missing_in_hierarchy_ids:
+            print("law_hierarchy_relationships 表格中遺漏的法規:")
+            for law_id in missing_in_hierarchy_ids:
+                print(f"  - {laws_with_metadata_map.get(law_id, '未知法規')}")
+        else:
+            print("law_hierarchy_relationships 表格中沒有遺漏的法規。")
+
+        # Check law_relationships table
+        db_cursor.execute("""
+            SELECT DISTINCT law_id FROM (
+                SELECT main_law_id AS law_id FROM law_relationships WHERE main_law_id IS NOT NULL
+                UNION
+                SELECT related_law_id AS law_id FROM law_relationships WHERE related_law_id IS NOT NULL
+            ) AS combined_laws;
+        """)
+        laws_in_relationships = {row[0] for row in db_cursor.fetchall()}
+        missing_in_relationships_ids = laws_with_metadata_ids - laws_in_relationships
+        if missing_in_relationships_ids:
+            print("law_relationships 表格中遺漏的法規:")
+            for law_id in missing_in_relationships_ids:
+                print(f"  - {laws_with_metadata_map.get(law_id, '未知法規')}")
+        else:
+            print("law_relationships 表格中沒有遺漏的法規。")
+
+        # 新增：檢查 law_relationships.main_law_id 遺漏的法規
+        db_cursor.execute("SELECT l.xml_law_name FROM laws l WHERE l.law_metadata IS NOT NULL AND l.id NOT IN (SELECT DISTINCT main_law_id FROM law_relationships WHERE main_law_id IS NOT NULL);")
+        missing_main_law_relationships = [row[0] for row in db_cursor.fetchall()]
+        if missing_main_law_relationships:
+            print("\nlaw_relationships 表格中 main_law_id 遺漏的法規:")
+            for law_name in missing_main_law_relationships:
+                print(f"  - {law_name}")
+        else:
+            print("\nlaw_relationships 表格中 main_law_id 沒有遺漏的法規。")
+
+        # 新增：檢查 law_hierarchy_relationships.main_law_id 遺漏的法規
+        db_cursor.execute("SELECT l.xml_law_name FROM laws l WHERE l.law_metadata IS NOT NULL AND l.id NOT IN (SELECT DISTINCT main_law_id FROM law_hierarchy_relationships WHERE main_law_id IS NOT NULL);")
+        missing_main_law_hierarchy = [row[0] for row in db_cursor.fetchall()]
+        if missing_main_law_hierarchy:
+            print("\nlaw_hierarchy_relationships 表格中 main_law_id 遺漏的法規:")
+            for law_name in missing_main_law_hierarchy:
+                print(f"  - {law_name}")
+        else:
+            print("\nlaw_hierarchy_relationships 表格中 main_law_id 沒有遺漏的法規。")
+
         return True
     except Exception as e:
         print(f"ERROR: 檢查 Meta Data 完整性時發生錯誤: {e}")
