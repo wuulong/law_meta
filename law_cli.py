@@ -1,3 +1,4 @@
+# Version: 0.2.1
 import argparse
 import os
 from law_processor import LawProcessor
