@@ -125,7 +125,15 @@ fi
 # --- Step 5: Sending Discord notification ---
 if [ "$RUN_STEP5" = true ]; then
     echo "--- Step 5: Sending Discord notification ---"
-    curl -X POST -H 'Content-type: application/json' --data "{\"content\": \"灌 ${NUM_LAWS} 筆資料完成\"}" ${DISCORD_URL} 
+
+    # Read the content of the law list file and format it as a comma-separated list
+    LAW_LIST_CONTENT=$(cat "${LAW_LIST_FILE}" | tr '\n' ',' | sed 's/,$//')
+
+    # Construct the message with the law list content
+    DISCORD_MESSAGE="灌 ${NUM_LAWS} 筆資料完成。處理法規列表： ${LAW_LIST_CONTENT}"
+
+    # Send Discord notification
+    curl -X POST -H 'Content-type: application/json' --data "{\"content\": \"${DISCORD_MESSAGE}\"}" ${DISCORD_URL} 
 
     if [ $? -ne 0 ]; then
         echo "Warning: Discord notification failed."
