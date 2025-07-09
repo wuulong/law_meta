@@ -37,15 +37,13 @@ def main():
     group_export = parser.add_argument_group('Export Operations')
     group_export.add_argument('-e', '--export-law-list', type=str,
                                   help='Path to a file containing a list of law names to export as Markdown.')
-    group_export.add_argument('--output-dir', type=str, default='./output',
-                                  help='Output directory for exported Markdown files. (Default: ./output)')
 
     # Group for LLM generation from MD
     group_llm_gen = parser.add_argument_group('LLM Generation Operations')
     group_llm_gen.add_argument('--generate-summary-from-md', action='store_true',
                                  help='Generate summaries from Markdown files using LLM. Requires --law-list.')
-    group_llm_gen.add_argument('--summary-output-dir', type=str, default='./data',
-                                 help='Output directory for generated summary Markdown files. (Default: ./data)')
+    group_llm_gen.add_argument('--output-dir', type=str, default='./output',
+                                 help='Output directory for generated summary Markdown files. (Default: ./output)')
     group_llm_gen.add_argument('--summary-example-file', type=str,
                                  help='Path to a file containing example summary content to include in the LLM prompt.')
 
@@ -92,7 +90,7 @@ def main():
     elif args.export_law_list:
         law_processor.export_law_list(args.export_law_list, args.output_dir)
     elif args.generate_summary_from_md:
-        law_processor.generate_summary_from_md(args.law_list_file, args.summary_output_dir, law_metadata_manager, args.summary_example_file)
+        law_processor.generate_summary_from_md(args.law_list_file, args.output_dir, law_metadata_manager, args.summary_example_file)
     elif args.check_integrity:
         law_processor.check_integrity()
 

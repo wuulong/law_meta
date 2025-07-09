@@ -432,7 +432,7 @@ class LawProcessor:
             # Format the summary as per the example
             formatted_summary = f"""----- File: {law_name}.txt -----
 **法規名稱：{law_name}**
-**關鍵資訊摘要（300字以內）**
+**摘要（300字以內）**
 {generated_summary}
 """
             all_summaries_content.append(formatted_summary)

@@ -649,7 +649,7 @@ class LawMetadataManager:
             return ""
 
         prompt_parts = [
-            f"請根據以下法規的 Markdown 內容，生成一份簡要摘要（300字以內）。"
+            f"請根據以下法規的 Markdown 內容，生成一份簡要摘要（300字以內）。請將摘要內容輸出，並用 '```markdown' 和 '```' 包裹。"
         ]
 
         if summary_example_content:
@@ -663,7 +663,15 @@ class LawMetadataManager:
         try:
             # Use the existing _call_gemini_api to interact with the LLM
             summary_text = self._call_gemini_api(law_name, md_content, user_prompt)
-            return summary_text.strip()
+            summary_text = self._call_gemini_api(law_name, md_content, user_prompt)
+            
+            # Extract content from markdown code block
+            markdown_match = re.search(r'```markdown\n(.*?)```', summary_text, re.DOTALL)
+            if markdown_match:
+                return markdown_match.group(1).strip()
+            else:
+                print(f"Warning: No markdown code block found in summary for {law_name}. Returning raw text.")
+                return summary_text.strip()
         except Exception as e:
             print(f"Error generating summary for {law_name}: {e}")
             return ""
