@@ -40,10 +40,34 @@ if [ $? -ne 0 ]; then
 fi
 
 echo "--- Step 2: Exporting law list from ${LAW_LIST_FILE} ---"
-python law_cli.py --export-law-list "${LAW_LIST_FILE}" --output-dir output_dir
+python law_cli.py --export-law-list "${LAW_LIST_FILE}" --output-dir output
 
 if [ $? -ne 0 ]; then
     echo "Error: Step 2 failed. Exiting."
+    exit 1
+fi
+
+echo "--- Step 2.1: Generating summary files and importing them ---"
+python law_cli.py --generate-summary-from-md --law-list "${LAW_LIST_FILE}" --summary-example-file output/summary_sample.md --output-dir output
+if [ $? -ne 0 ]; then
+    echo "Error: Step 2.1 (Generate Summary) failed. Exiting."
+    exit 1
+fi
+python law_cli.py --update-summary output/all_laws_summary.md --law-list "${LAW_LIST_FILE}"
+if [ $? -ne 0 ]; then
+    echo "Error: Step 2.1 (Import Summary) failed. Exiting."
+    exit 1
+fi
+
+echo "--- Step 2.2: Generating keyword files and importing them ---"
+python law_cli.py --generate-keywords-from-md --law-list "${LAW_LIST_FILE}" --output-file output/keywords_sample.csv
+if [ $? -ne 0 ]; then
+    echo "Error: Step 2.2 (Generate Keywords) failed. Exiting."
+    exit 1
+fi
+python law_cli.py --update-keywords output/keywords_sample.csv --law-list "${LAW_LIST_FILE}"
+if [ $? -ne 0 ]; then
+    echo "Error: Step 2.2 (Import Keywords) failed. Exiting."
     exit 1
 fi
 

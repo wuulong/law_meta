@@ -413,8 +413,12 @@ class LawProcessor:
         for law_name in law_names:
             md_file_path = os.path.join('data', f"{law_name}.md")
             if not os.path.exists(md_file_path):
-                print(f"Warning: Markdown file not found for {law_name} at {md_file_path}. Skipping.")
-                continue
+                alternative_md_file_path = os.path.join(output_dir, f"{law_name}.md")
+                if os.path.exists(alternative_md_file_path):
+                    md_file_path = alternative_md_file_path
+                else:
+                    print(f"Warning: Markdown file not found for {law_name} at {md_file_path} or {alternative_md_file_path}. Skipping.")
+                    continue
 
             print(f"Generating summary for {law_name} from {md_file_path}...")
             with open(md_file_path, 'r', encoding='utf-8') as f:

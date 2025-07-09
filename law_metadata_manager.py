@@ -259,12 +259,12 @@ class LawMetadataManager:
                 cur.close()
                 conn.close()
 
-    def generate_meta_list(self, markdown_file_list_path):
+    def generate_meta_list(self, markdown_file_list_path, output_dir): # Added output_dir parameter
         with open(markdown_file_list_path, 'r', encoding='utf-8') as f:
             law_names = [line.strip() for line in f if line.strip()]
         
         for law_name in law_names:
-            markdown_path = os.path.join('data', f'{law_name}.md')
+            markdown_path = os.path.join(output_dir, f'{law_name}.md') # Use output_dir here
             print(f"Generating metadata for law: {law_name} from {markdown_path}")
             # Call the refactored method with default flags
             self._generate_single_law_metadata(law_name, markdown_path)
@@ -328,103 +328,6 @@ class LawMetadataManager:
         print(f"Deleted temporary law content file: {law_content_file.name} and local file {temp_law_file_path}")
 
         return response_text
-
-    def _generate_single_law_metadata(self, law_name, markdown_path,
-                                      generate_law_regulation=True,
-                                      generate_legal_concepts=True,
-                                      generate_hierarchy_relations=True,
-                                      generate_law_relations=True,
-                                      generate_law_articles=False): # Changed default to False
-        law_content = ""
-        try:
-            with open(markdown_path, 'r', encoding='utf-8') as f:
-                law_content = f.read()
-        except FileNotFoundError:
-            alternative_markdown_path = os.path.join('output_dir', f'{law_name}.md')
-            print(f"File not found in {markdown_path}, trying {alternative_markdown_path}")
-            try:
-                with open(alternative_markdown_path, 'r', encoding='utf-8') as f:
-                    law_content = f.read()
-            except FileNotFoundError:
-                print(f"Error: Markdown file not found at {markdown_path} or {alternative_markdown_path}")
-                return
-
-        output_dir = 'json'
-        tmp_output_dir = 'tmp/meta_data_temp' # New temporary directory for meta data
-        os.makedirs(output_dir, exist_ok=True)
-        os.makedirs(tmp_output_dir, exist_ok=True)
-
-        # Define file names based on the specification
-        file_names = {
-            "law_regulation": f"{law_name}_law_regulation.json",
-            "law_articles": f"{law_name}_law_articles.json",
-            "legal_concepts": f"{law_name}_legal_concepts.json",
-            "hierarchy_relations": f"{law_name}_hierarchy_relations.json",
-            "law_relations": f"{law_name}_law_relations.json",
-        }
-
-        # Prompts for each metadata type
-        prompt_configs = {
-            'law_regulation': {
-                'flag': generate_law_regulation,
-                'prompt': f"根據提供的法規內容和法律語法形式化規範，產生法規 Meta Data (Law Meta Data)，盡可能詳列資訊，不要省略。請將 JSON 內容輸出，並用 '```json' 和 '```' 包裹。",
-                'output_key': 'law_regulation'
-            },
-            'legal_concepts': {
-                'flag': generate_legal_concepts,
-                'prompt': f"根據提供的法規內容和法律語法形式化規範，產生法律概念 Meta Data (Legal Concept Meta Data)，注意並非 法規 Meta Data，請列出全部概念，不要省略。請將 JSON 內容輸出，並用 '```json' 和 '```' 包裹。",
-                'output_key': 'legal_concepts'
-            },
-            'hierarchy_relations': {
-                'flag': generate_hierarchy_relations,
-                'prompt': f"根據提供的法規內容和法律語法形式化規範，產生法規階層關係 Meta Data，不包含法條間關聯性，請列出全部法規間階層關係，尤其包含上位關係，不要省略。請將 JSON 內容輸出，並用 '```json' 和 '```' 包裹。",
-                'output_key': 'hierarchy_relations'
-            },
-            'law_relations': {
-                'flag': generate_law_relations,
-                'prompt': f"根據提供的法規內容和法律語法形式化規範，產生法規關聯性 Meta Data，不包含本法規內部法條之間的關聯性，請列出法規間全部關聯性，不要省略。請將 JSON 內容輸出，並用 '```json' 和 '```' 包裹。",
-                'output_key': 'law_relations'
-            },
-            'law_articles': { # Set flag to False here
-                'flag': False,
-                'prompt': f"根據提供的法規內容和法律語法形式化規範，產生所有法條的 Meta Data (Article Meta Data)。為每條法條生成一個 JSON 物件，並將所有法條的 JSON 物件放入一個列表中。請列出所有法條，不要省略。請將 JSON 內容輸出，並用 '```json' 和 '```' 包裹。",
-                'output_key': 'law_articles'
-            },
-        }
-
-    def _process_raw_text_to_json(self, raw_text, tmp_output_file, output_file, meta_type_key):
-        """
-        Helper to extract, clean, parse JSON from raw text, and save it.
-        Returns True on success, False on failure.
-        """
-        try:
-            json_match = re.search(r'```json\n(.*?)```', raw_text, re.DOTALL)
-            if json_match:
-                json_string = json_match.group(1).strip()
-            else:
-                # If no ```json block is found, try to parse the whole text as JSON
-                json_string = raw_text.strip()
-                print(f"Warning: No JSON block found in raw text for {meta_type_key}. Attempting to parse entire text as JSON.")
-
-            json_string = re.sub(r'//.*\n', '', json_string)
-            json_string = re.sub(r'/\*.*?\*/', '', json_string, flags=re.DOTALL)
-
-            if not json_string:
-                raise json.JSONDecodeError("Empty JSON string after extraction and cleaning.", raw_text, 0)
-
-            json_data = json.loads(json_string)
-            with open(tmp_output_file, 'w', encoding='utf-8') as f:
-                json.dump(json_data, f, ensure_ascii=False, indent=2)
-            shutil.move(tmp_output_file, output_file)
-            print(f"Successfully processed and saved {meta_type_key} from raw text to {output_file}")
-            return True
-        except json.JSONDecodeError as e:
-            print(f"Error decoding JSON from raw text for {meta_type_key}: {e}")
-            print(f"Problematic raw text content: {raw_text[:500]}...")
-            return False
-        except Exception as e:
-            print(f"Error processing raw text for {meta_type_key}: {e}")
-            return False
 
     def _generate_single_law_metadata(self, law_name, markdown_path,
                                       generate_law_regulation=True,
@@ -639,6 +542,42 @@ class LawMetadataManager:
                 json.dump(all_articles_metadata, f, ensure_ascii=False, indent=2)
             print(f"Generated all law articles to {articles_output_file}")
 
+
+    def _process_raw_text_to_json(self, raw_text, tmp_output_file, output_file, meta_type_key):
+        """
+        Helper to extract, clean, parse JSON from raw text, and save it.
+        Returns True on success, False on failure.
+        """
+        try:
+            json_match = re.search(r'```json\n(.*?)```', raw_text, re.DOTALL)
+            if json_match:
+                json_string = json_match.group(1).strip()
+            else:
+                # If no ```json block is found, try to parse the whole text as JSON
+                json_string = raw_text.strip()
+                print(f"Warning: No JSON block found in raw text for {meta_type_key}. Attempting to parse entire text as JSON.")
+
+            json_string = re.sub(r'//.*\n', '', json_string)
+            json_string = re.sub(r'/\*.*?\*/', '', json_string, flags=re.DOTALL)
+
+            if not json_string:
+                raise json.JSONDecodeError("Empty JSON string after extraction and cleaning.", raw_text, 0)
+
+            json_data = json.loads(json_string)
+            with open(tmp_output_file, 'w', encoding='utf-8') as f:
+                json.dump(json_data, f, ensure_ascii=False, indent=2)
+            shutil.move(tmp_output_file, output_file)
+            print(f"Successfully processed and saved {meta_type_key} from raw text to {output_file}")
+            return True
+        except json.JSONDecodeError as e:
+            print(f"Error decoding JSON from raw text for {meta_type_key}: {e}")
+            print(f"Problematic raw text content: {raw_text[:500]}...")
+            return False
+        except Exception as e:
+            print(f"Error processing raw text for {meta_type_key}: {e}")
+            return False
+
+
     def generate_llm_summary(self, law_name, md_content, summary_example_content=""):
         """
         Generates a summary for a given law using LLM based on its Markdown content.
@@ -663,7 +602,6 @@ class LawMetadataManager:
         try:
             # Use the existing _call_gemini_api to interact with the LLM
             summary_text = self._call_gemini_api(law_name, md_content, user_prompt)
-            summary_text = self._call_gemini_api(law_name, md_content, user_prompt)
             
             # Extract content from markdown code block
             markdown_match = re.search(r'```markdown\n(.*?)```', summary_text, re.DOTALL)
@@ -674,4 +612,45 @@ class LawMetadataManager:
                 return summary_text.strip()
         except Exception as e:
             print(f"Error generating summary for {law_name}: {e}")
+            return ""
+
+    def generate_llm_keywords(self, law_name, md_content, keywords_example_content=""):
+        """
+        Generates keywords for a given law using LLM based on its Markdown content.
+        Explicitly asks for keywords in a CSV code block and parses the response.
+        """
+        if not self.client:
+            print("Error: Gemini API client not initialized. Cannot generate keywords.")
+            return ""
+
+        prompt_parts = [
+            f"請根據以下法規的 Markdown 內容，生成該法規的關鍵字。請將每個關鍵字放在單獨一行，並用 '```csv' 和 '```' 包裹。CSV 檔案應只包含一列：'關鍵字'。"
+        ]
+
+        if keywords_example_content:
+            prompt_parts.append(f"\n\n以下是一個關鍵字範例，請參考其風格和內容結構：\n{keywords_example_content}")
+
+        prompt_parts.append(f"\n\n法規內容：\n{md_content}")
+
+        user_prompt = "".join(prompt_parts)
+
+        print(f"Generating LLM keywords for {law_name}...")
+        try:
+            keywords_text = self._call_gemini_api(law_name, md_content, user_prompt)
+            
+            # Extract content from CSV code block
+            csv_match = re.search(r'''```csv
+(.*?)```''', keywords_text, re.DOTALL)
+            if csv_match:
+                # Remove the first line (header) from the CSV content
+                csv_content = csv_match.group(1).strip()
+                lines = csv_content.split('\n')
+                if lines and lines[0].strip() == '關鍵字':
+                    return '\n'.join(lines[1:]).strip()
+                return csv_content
+            else:
+                print(f"Warning: No CSV code block found in keywords for {law_name}. Returning raw text.")
+                return keywords_text.strip()
+        except Exception as e:
+            print(f"Error generating keywords for {law_name}: {e}")
             return ""

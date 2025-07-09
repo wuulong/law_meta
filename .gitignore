@@ -4,7 +4,7 @@ __pycache__/
 *$py.class
 tmp/
 txt/
-output_dir/
+output/
 
 # C extensions
 *.so

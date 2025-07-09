@@ -18,7 +18,7 @@ echo ""
 
 # @SCEN-024: 透過命令列工具匯出多個法規的完整資料為 Markdown 檔案，法規清單從檔案來
 echo "--- Running SCEN-024 ---"
-python law_cli.py --export-law-list data/law_export_list.txt --output-dir output_dir
+python law_cli.py --export-law-list data/law_export_list.txt --output-dir output
 echo ""
 
 # @SCEN-022: 透過命令列工具從多個法規的 Markdown 檔案生成 Meta Data，法規清單從檔案來
@@ -35,3 +35,17 @@ echo ""
 echo "--- Running SCEN-023 ---"
 python law_cli.py --delete-law-list data/law_delete_list.txt
 echo ""
+
+# @SCEN-027: 透過命令列工具，將法規 md 檔，用 LLM 生成摘要，匯出格式要跟現在摘要範例一樣，命令列參數需提供 law_list.txt
+echo "--- Running SCEN-027 ---"
+python law_cli.py --generate-summary-from-md --law-list data/law_list_generate_summary.txt --summary-example-file output/summary_sample.md --output-dir output
+python law_cli.py --update-summary output/all_laws_summary.md --law-list data/law_list_generate_summary.txt
+echo ""
+
+# @SCEN-028: 透過命令列工具從法規 Markdown 檔案生成 LLM 關鍵字
+echo "--- Running SCEN-028 ---"
+python law_cli.py --generate-keywords-from-md --law-list data/law_list_generate_keywords.txt --output-file output/keywords_sample.csv
+python law_cli.py --update-keywords output/keywords_sample.csv --law-list data/law_list_generate_keywords.txt
+echo ""
+
+
