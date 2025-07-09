@@ -5,8 +5,8 @@ RUN_STEP1=true  # Generate law list
 RUN_STEP2=true  # Export law list
 RUN_STEP2_1=true # Generate and import summaries
 RUN_STEP2_2=true # Generate and import keywords
-RUN_STEP3=false  # Generate meta list
-RUN_STEP4=false  # Import meta list
+RUN_STEP3=true  # Generate meta list
+RUN_STEP4=true  # Import meta list
 RUN_STEP5=true  # Send Discord notification
 
 # Database connection string (e.g., "postgresql://user:password@host:port/database")
@@ -23,7 +23,7 @@ LOG_FILE="run_${TIMESTAMP}.log"
 mkdir -p tmp
 
 # Get the number of laws to process from the first argument, default to 50 if not provided
-NUM_LAWS=1
+NUM_LAWS=10
 
 # --- Step 1: Generating law list ---
 if [ "$RUN_STEP1" = true ]; then
@@ -48,12 +48,13 @@ if [ "$RUN_STEP1" = true ]; then
             END DESC,
             l.xml_latest_change_date DESC limit ${NUM_LAWS};"
     else
-        SQL="SELECT xml_law_name from laws where llm_summary IS NULL and law_metadata is not NULL ORDER BY xml_law_name limit ${NUM_LAWS};"
+	    SQL="SELECT xml_law_name from laws where (llm_summary IS NULL or llm_keywords IS NULL) and (law_metadata is not NULL) ORDER BY xml_law_name limit ${NUM_LAWS};"
     fi
-    psql "${DATABASE_URL}" -c  "${SQL}" | sed '1,2d; $d' | sed '$d' > "${LAW_LIST_FILE}"
+    echo "$SQL"
+    psql "${DATABASE_URL}" -c "${SQL}" | sed '1,2d; $d' | sed '$d' > "${LAW_LIST_FILE}"
 
-    if [ $? -ne 0 ]; then
-        echo "Error: Step 1 failed. Exiting."
+    if [ ! -s "$LAW_LIST_FILE" ]; then 
+        echo i"$LAW_LIST_FILE size 0. Exiting."
         exit 1
     fi
 fi
@@ -124,7 +125,7 @@ fi
 # --- Step 5: Sending Discord notification ---
 if [ "$RUN_STEP5" = true ]; then
     echo "--- Step 5: Sending Discord notification ---"
-    curl -X POST -H 'Content-type: application/json' --data "{\"content\": \"灌 ${NUM_LAWS} 筆資料完成\"}" https://discord.com/api/webhooks/1279669331235704893/1Y447iPwiipRWgo4BrOWr65tEHSu2WebYyOyLSNlerBpey1L2RHqrGMU0r-qHeLkAf2g
+    curl -X POST -H 'Content-type: application/json' --data "{\"content\": \"灌 ${NUM_LAWS} 筆資料完成\"}" ${DISCORD_URL} 
 
     if [ $? -ne 0 ]; then
         echo "Warning: Discord notification failed."
