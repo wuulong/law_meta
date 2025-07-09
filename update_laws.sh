@@ -32,7 +32,7 @@
 
 # --- 變數設定 ---
 CLI_SCRIPT="law_cli.py"
-EXPORT_MD_DIR="output_dir"
+EXPORT_MD_DIR="output"
 GEN_META_LIST_FILE="tmp/gen_meta_list.txt"
 
 # 預設檔案路徑
